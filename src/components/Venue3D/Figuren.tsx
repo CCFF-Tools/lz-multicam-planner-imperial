@@ -1,3 +1,4 @@
+import { objectYaw, personYaw } from '../../utils/objectOrientation';
 // Figuren der 3D-Szene: Referenzpersonen und Buehnenobjekte. Eigene Datei,
 // weil die 3D-Ansicht und die gerenderten Kamerabilder (Vorschau, Multiview)
 // dieselben Figuren zeigen.
@@ -203,7 +204,7 @@ export function RealPerson({ id, height, darstellung, color, facingDeg }: { id: 
     return erzeugeMensch(pose, { oben: color ?? v.oben, unten: v.unten, haut: v.haut, haar: v.haar, langarm: v.langarm }, stehend, gestalt);
   }, [id, height, pose, gestalt, color]);
   useEffect(() => () => { mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); }, [mesh]);
-  return <primitive object={mesh} rotation={[0, Math.PI / 2 - (facingDeg * Math.PI) / 180, 0]} />;
+  return <primitive object={mesh} rotation={[0, personYaw(facingDeg, 0), 0]} />;
 }
 
 /**
@@ -214,11 +215,11 @@ export function RealPerson({ id, height, darstellung, color, facingDeg }: { id: 
 export function Figur({ person, facingDeg, name, objektName }: { person: ReferencePerson; facingDeg: number; name: boolean; objektName: boolean }) {
   const darstellung = useMemo(() => personDarstellung(person), [person.id, person.label, person.objectType]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!darstellung) {
-    return <PersonMesh x={0} z={0} height={person.height} label={person.label} objectType={person.objectType} color={person.color} showLabel={objektName} />;
+    return <group rotation={[0, objectYaw(person.rotationDeg), 0]}><PersonMesh x={0} z={0} height={person.height} label={person.label} objectType={person.objectType} color={person.color} showLabel={objektName} /></group>;
   }
   return (
     <>
-      <RealPerson id={person.id} height={person.height} darstellung={darstellung} color={person.color} facingDeg={facingDeg} />
+      <RealPerson id={person.id} height={person.height} darstellung={darstellung} color={person.color} facingDeg={person.rotationDeg ?? facingDeg} />
       {name && (
         <Text font={LABEL_FONT} position={[0, person.height + 0.25, 0]} fontSize={0.22} color={person.color ?? '#f59e0b'} anchorX="center"
           outlineWidth={0.015} outlineColor="#000000">

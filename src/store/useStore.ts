@@ -137,7 +137,7 @@ interface AppState {
   addSeatingBlock: (standing?: boolean) => void;
   updateSeatingBlock: (id: string, updates: Partial<VenueSeatingBlock>) => void;
   removeSeatingBlock: (id: string) => void;
-  addVideoWall: () => void;
+  addVideoWall: (displayType?: 'led-wall' | 'monitor') => void;
   updateVideoWall: (id: string, updates: Partial<VenueVideoWall>) => void;
   removeVideoWall: (id: string) => void;
 
@@ -566,8 +566,8 @@ export const useStore = create<AppState>((set, get) => ({
     venue: { ...s.venue, seatingBlocks: (s.venue.seatingBlocks ?? []).filter((b) => b.id !== id) },
     projectVersion: s.projectVersion + 1,
   })),
-  addVideoWall: () => set((s) => ({
-    venue: { ...s.venue, videoWalls: [...(s.venue.videoWalls ?? []), neueVideowand(s.venue)] },
+  addVideoWall: (displayType = 'led-wall') => set((s) => ({
+    venue: { ...s.venue, videoWalls: [...(s.venue.videoWalls ?? []), { ...neueVideowand(s.venue), ...(displayType === 'monitor' ? { displayType, label: 'Monitor', widthM: 1.2176, heightM: 0.6849, bottomM: 1.5 } : {}) }] },
     projectVersion: s.projectVersion + 1,
   })),
   updateVideoWall: (id, updates) => set((s) => ({

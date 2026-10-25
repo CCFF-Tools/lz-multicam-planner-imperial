@@ -182,7 +182,7 @@ export function toVenueExchange(input: MultiCamVenueInput): VenueExchange {
         const f = personForeign[p.id];
         return {
           id: p.id, x: p.x, y: p.y, height: p.height, label: p.label,
-          width: p.width, objectType: p.objectType, color: p.color,
+          width: p.width, objectType: p.objectType, color: p.color, rotationDeg: p.rotationDeg,
           ...(f?.pose !== undefined ? { pose: f.pose } : {}),
           ...(f?.facing !== undefined ? { facing: f.facing } : {}),
         };
@@ -284,6 +284,7 @@ export function fromVenueExchange(ex: VenueExchange): MultiCamVenueResult {
     persons: (v.persons ?? []).map((p) => ({
       id: p.id, x: p.x, y: p.y, height: p.height, width: p.width ?? 0.5,
       label: p.label, objectType: (p.objectType as StageObjectType) ?? 'person', color: p.color,
+      rotationDeg: Number.isFinite(p.rotationDeg) ? p.rotationDeg : undefined,
     })),
     walls: (v.walls ?? []).map((w) => ({
       id: w.id, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, height: w.height, label: w.label ?? '',

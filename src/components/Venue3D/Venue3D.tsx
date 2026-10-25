@@ -1,3 +1,5 @@
+import { useUnits } from '../../store/units';
+import { formatLength } from '../../utils/units';
 import React from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Grid, Text, PerspectiveCamera, Html, TransformControls, Billboard } from '@react-three/drei';
@@ -125,6 +127,7 @@ function DraggableOnFloor({ children, x, z, onDragEnd, onClick }: {
 
 /* ── Floor grid with visible metre labels ── */
 function FloorLabels({ widthM, heightM }: { widthM: number; heightM: number }) {
+  const units = useUnits(s => s.units);
   // React 19 moved JSX out of the global namespace — the equivalent type now
   // lives at React.JSX.Element.
   const labels: React.JSX.Element[] = [];
@@ -132,7 +135,7 @@ function FloorLabels({ widthM, heightM }: { widthM: number; heightM: number }) {
   for (let x = 0; x <= widthM; x += 5) {
     labels.push(
       <Text key={`xl-${x}`} font={LABEL_FONT} position={[x, 0.02, -0.4]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.35} color="#6b7280" anchorX="center">
-        {x}m
+        {formatLength(x, units)}{units === 'metric' ? 'm' : ''}
       </Text>,
     );
   }
@@ -140,7 +143,7 @@ function FloorLabels({ widthM, heightM }: { widthM: number; heightM: number }) {
   for (let z = 0; z <= heightM; z += 5) {
     labels.push(
       <Text key={`zl-${z}`} font={LABEL_FONT} position={[-0.5, 0.02, z]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.35} color="#6b7280" anchorX="right">
-        {z}m
+        {formatLength(z, units)}{units === 'metric' ? 'm' : ''}
       </Text>,
     );
   }

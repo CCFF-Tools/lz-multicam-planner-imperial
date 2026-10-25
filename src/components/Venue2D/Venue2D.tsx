@@ -1,3 +1,5 @@
+import { useUnits } from '../../store/units';
+import { formatLength } from '../../utils/units';
 import { Stage, Layer, Rect, Wedge, Arc, Circle, Text, Group, Line, Image as KImage, Transformer } from 'react-konva';
 import { useStore } from '../../store/useStore';
 import { foreignFixturesFrom, cctToColor } from '../../utils/foreignView';
@@ -91,6 +93,8 @@ export default function Venue2D() {
   const setPlanVorschau = useStore((s) => s.setPlanVorschau);
   const planBereichModus = useStore((s) => s.planBereichModus);
   const setPlanBereichModus = useStore((s) => s.setPlanBereichModus);
+  const units = useUnits(s => s.units);
+  const length = (v: number) => formatLength(v, units) + (units === 'metric' ? 'm' : '');
   const { venue, setVenue, cameras, selectedCameraId, selectCamera, moveCamera, updateCamera, removeCamera, duplicateCamera, showAllFov, showDof, pixelsPerMeter, persons, updatePerson, removePerson, duplicatePerson, updateStage, addStage, removeStage, updateSeatingBlock, updateVideoWall, backgroundPlan, setBackgroundPlan, walls, updateWall, addWall, removeWall, wallSnap, editGroups, avForeign, showForeign } = useStore();
 
   // Gesperrte Gruppen (#43, #169). Eine freie Gruppe faellt auf die Sperre
@@ -726,13 +730,13 @@ export default function Venue2D() {
         {Array.from({ length: Math.floor(venue.widthM) + 1 }).map((_, i) => (
           <Group key={`vg-${i}`}>
             <Line points={[i * ppm, 0, i * ppm, H]} stroke={P.raster} strokeWidth={1} />
-            <Text x={i * ppm + 2} y={2} text={`${i}m`} fontSize={9} fill={P.rasterText} />
+            <Text x={i * ppm + 2} y={2} text={length(i)} fontSize={9} fill={P.rasterText} />
           </Group>
         ))}
         {Array.from({ length: Math.floor(venue.heightM) + 1 }).map((_, i) => (
           <Group key={`hg-${i}`}>
             <Line points={[0, i * ppm, W, i * ppm]} stroke={P.raster} strokeWidth={1} />
-            <Text x={2} y={i * ppm + 2} text={`${i}m`} fontSize={9} fill={P.rasterText} />
+            <Text x={2} y={i * ppm + 2} text={length(i)} fontSize={9} fill={P.rasterText} />
           </Group>
         ))}
         <Rect x={0} y={0} width={W} height={H} stroke={P.rahmen} strokeWidth={2} />
@@ -740,7 +744,7 @@ export default function Venue2D() {
         <Line points={[10, H - 20, 10 + 5 * ppm, H - 20]} stroke={P.massstab} strokeWidth={2} />
         <Line points={[10, H - 25, 10, H - 15]} stroke={P.massstab} strokeWidth={2} />
         <Line points={[10 + 5 * ppm, H - 25, 10 + 5 * ppm, H - 15]} stroke={P.massstab} strokeWidth={2} />
-        <Text x={10} y={H - 38} text="5m" fontSize={11} fill={P.massstab} />
+        <Text x={10} y={H - 38} text={length(5)} fontSize={11} fill={P.massstab} />
       </Layer>
 
       {/* ── Layer 2: Interactive objects (FOV, stages, walls, persons, cameras) ── */}
@@ -952,7 +956,20 @@ export default function Venue2D() {
           );
           const footW = Math.max(6, p.width * ppm);
           return (
-            <Group key={p.id} x={p.x * ppm} y={p.y * ppm} draggable={!p.locked && !lockPersons} onDragEnd={(e) => handlePersonDragEnd(p.id, e)} onContextMenu={(e) => { e.evt.preventDefault(); if (!lockPersons) openContextMenu('person', p.id, !!p.locked, e); }}>
+            <Group rotation={p.rotationDeg ?? 0} key={p.id} x={p.x * ppm} y={p.y * ppm} draggable={!p.locked && !lockPersons} onDragEnd={(e) => handlePersonDragEnd(p.id, e)} onContextMenu={(e) => { e.evt.preventDefault(); if (!lockPersons) openContextMenu('person', p.id, !!p.locked, e); }}>
+              {!p.locked && !lockPersons && <Circle x={0} y={-footW / 2 - 16} radius={5} fill="#ffffff" stroke={col} draggable onDragStart={(e) => { e.cancelBubble = true; }} onDragEnd={(e) => {
+                e.cancelBubble = true;
+                const node = e.target;
+                const parent = node.getParent();
+                const pos = parent?.getStage()?.getPointerPosition();
+                if (parent && pos) {
+                  const point = parent.getAbsoluteTransform().copy().invert().point(pos);
+                  let angle = (p.rotationDeg ?? 0) + Math.atan2(point.x, -point.y) * 180 / Math.PI;
+                  if (e.evt.shiftKey) angle = Math.round(angle / 15) * 15;
+                  updatePerson(p.id, { rotationDeg: angle });
+                }
+                node.position({ x: 0, y: -footW / 2 - 16 });
+              }} />}
               {type === 'table' || type === 'drums' || type === 'keys' ? (
                 <Rect x={-footW / 2} y={-footW / 4} width={footW} height={footW / 2} fill={col} opacity={0.55} stroke={col} strokeWidth={1} cornerRadius={2} />
               ) : type === 'schneetiger' ? (
@@ -960,7 +977,7 @@ export default function Venue2D() {
               ) : (
                 <Circle radius={Math.max(5, footW / 3)} fill={col} stroke="#fff" strokeWidth={1} opacity={0.85} />
               )}
-              <Text x={-26} y={8} text={`${p.locked ? '🔒 ' : ''}${p.label} (${p.height}m)`} fontSize={9} fill={col} align="center" width={52} />
+              <Text x={-26} y={8} text={`${p.locked ? '🔒 ' : ''}${p.label} (${length(p.height)})`} fontSize={9} fill={col} align="center" width={52} />
             </Group>
           );
         })}
@@ -1065,7 +1082,7 @@ export default function Venue2D() {
       {calibActive && (
         <Layer>
           <Rect x={0} y={0} width={W} height={30} fill="#000000" opacity={0.7} listening={false} />
-          <Text x={W / 2 - 140} y={8} text={calibPoints.length === 0 ? `Click first point (${calibAxis.toUpperCase()} axis, ${calibDistM}m)` : `Click second point (${calibAxis.toUpperCase()} axis)`} fontSize={14} fill="#22c55e" fontStyle="bold" listening={false} />
+          <Text x={W / 2 - 140} y={8} text={calibPoints.length === 0 ? `Click first point (${calibAxis.toUpperCase()} axis, ${length(calibDistM)})` : `Click second point (${calibAxis.toUpperCase()} axis)`} fontSize={14} fill="#22c55e" fontStyle="bold" listening={false} />
           {calibPoints.map((p, i) => (
             <Group key={`cp-${i}`}>
               <Circle x={p.x} y={p.y} radius={6} fill="#22c55e" stroke="#fff" strokeWidth={2} listening={false} />

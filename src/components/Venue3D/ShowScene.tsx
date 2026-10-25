@@ -329,10 +329,19 @@ export function LedWalls({ walls, maxLichter }: { walls: VenueVideoWall[]; maxLi
     const g = new THREE.Group();
     walls.map(videowandNormal).forEach((w, i) => {
       const [a, b] = LED_FARBEN[i % LED_FARBEN.length];
-      const wand = erzeugeLedWand({ breiteM: w.widthM, hoeheM: w.heightM, farbeA: a, farbeB: b, helligkeit: 1.8 });
-      if (i < maxLichter) wand.add(erzeugeLedLicht({ breiteM: w.widthM, hoeheM: w.heightM, farbe: new THREE.Color(a).lerp(new THREE.Color(b), 0.5), staerke: 1.2 }));
+      const monitor = w.displayType === 'monitor';
+      const wand = monitor ? new THREE.Group() : erzeugeLedWand({ breiteM: w.widthM, hoeheM: w.heightM, farbeA: a, farbeB: b, helligkeit: 1.8 });
+      if (monitor) {
+        const bezel = new THREE.Mesh(new THREE.BoxGeometry(w.widthM, w.heightM, 0.06), new THREE.MeshStandardMaterial({ color: '#181818', roughness: 0.5 }));
+        bezel.position.y = w.heightM / 2;
+        bezel.castShadow = true; bezel.receiveShadow = true;
+        const screen = new THREE.Mesh(new THREE.PlaneGeometry(Math.max(0.01, w.widthM - 0.03), Math.max(0.01, w.heightM - 0.03)), new THREE.MeshBasicMaterial({ color: '#536b80', toneMapped: false }));
+        screen.position.set(0, w.heightM / 2, 0.031);
+        wand.add(bezel, screen);
+      }
+      if (!monitor && i < maxLichter) wand.add(erzeugeLedLicht({ breiteM: w.widthM, hoeheM: w.heightM, farbe: new THREE.Color(a).lerp(new THREE.Color(b), 0.5), staerke: 1.2 }));
       // Bodenstuetzen, damit eine hoch haengende Wand nicht schwebt.
-      if (w.bottomM > 0.3) {
+      if (!monitor && w.bottomM > 0.3) {
         const stahl = new THREE.MeshStandardMaterial({ color: '#202226', roughness: 0.5, metalness: 0.6 });
         for (const s of [-1, 1]) {
           const st = new THREE.Mesh(new THREE.BoxGeometry(0.25, w.bottomM, 0.25), stahl);

@@ -1,3 +1,5 @@
+import LengthInput from '../ui/LengthInput';
+import { useUnits } from '../../store/units';
 // Abschnitt „Raum": Decke, Boden, Publikumsflaechen, Videowaende.
 //
 // Alles optional. Ein Projekt ohne Eintrag hier plant Kameras wie immer,
@@ -20,10 +22,12 @@ const zahl = (v: string, fallback: number) => {
 const feld = 'w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright text-xs tabular-nums';
 
 function Zahl({ label, value, step, min, max, onChange, title }: { label: string; value: number; step: number; min: number; max: number; onChange: (v: number) => void; title?: string }) {
+  const units = useUnits(s => s.units);
+  const length = /(?: m$| m\b)/.test(label);
   return (
     <label title={title}>
-      <span className="text-bc-dim">{label}</span>
-      <input type="number" className={feld} value={value} step={step} min={min} max={max} onChange={(e) => onChange(Math.min(max, Math.max(min, zahl(e.target.value, value))))} />
+      <span className="text-bc-dim">{length && units === 'imperial' ? label.replace(/\bm\b/g, 'ft / in') : label}</span>
+      {length ? <LengthInput className={feld} value={value} min={min} max={max} onChange={onChange} /> : <input type="number" className={feld} value={value} step={step} min={min} max={max} onChange={(e) => onChange(Math.min(max, Math.max(min, zahl(e.target.value, value))))} />}
     </label>
   );
 }
@@ -155,7 +159,7 @@ export default function RoomPanel() {
                 <Zahl label={t('room.rise', 'Rise m')} value={b.riseM} step={0.05} min={0} max={1.5} title={t('room.rise.title', 'Step per row — 0 is a flat floor, about 0.45 a stadium stand')} onChange={(v) => updateSeatingBlock(b.id, { riseM: v })} />
                 <Zahl label={t('room.base', 'Height m')} value={b.baseHeightM} step={0.5} min={0} max={80} title={t('room.base.title', 'Height of the first row above the floor (upper tier)')} onChange={(v) => updateSeatingBlock(b.id, { baseHeightM: v })} />
                 <Zahl label={t('room.occupancy', 'Full %')} value={Math.round(b.occupancy * 100)} step={5} min={0} max={100} onChange={(v) => updateSeatingBlock(b.id, { occupancy: v / 100 })} />
-                <Zahl label={t('room.rotation', 'Turn °')} value={b.rotationDeg} step={5} min={0} max={359} onChange={(v) => updateSeatingBlock(b.id, { rotationDeg: v })} />
+                <Zahl label={t('room.rotation', 'Turn °')} value={b.rotationDeg} step={0.1} min={-1000000000} max={1000000000} onChange={(v) => updateSeatingBlock(b.id, { rotationDeg: v })} />
               </div>
             </details>
           </div>
@@ -188,16 +192,19 @@ export default function RoomPanel() {
               </button>
             </div>
             <div className="grid grid-cols-4 gap-1">
-              <Zahl label={t('room.x', 'X m')} value={rund(w.x)} step={0.1} min={-10000} max={10000} title={t('room.wallX.title', 'Centre of the lower edge, from the left edge of the plan')} onChange={(v) => updateVideoWall(w.id, { x: v })} />
-              <Zahl label={t('room.y', 'Y m')} value={rund(w.y)} step={0.1} min={-10000} max={10000} title={t('room.wallY.title', 'Centre of the lower edge, from the top edge of the plan')} onChange={(v) => updateVideoWall(w.id, { y: v })} />
+              <label>Display type<select value={w.displayType} onChange={(e) => updateVideoWall(w.id, { displayType: e.target.value as 'monitor' | 'led-wall' })}><option value="led-wall">LED wall</option><option value="monitor">Monitor</option></select></label>
+              {w.displayType === 'monitor' && <><label>Diagonal inches<select defaultValue="" onChange={(e) => { const diagonal = Number(e.target.value) * 0.0254; const ratio = w.widthM / w.heightM; const heightM = diagonal / Math.sqrt(ratio * ratio + 1); updateVideoWall(w.id, { heightM, widthM: heightM * ratio }); }}><option value="" disabled>Custom</option>{[24,32,43,55,65,75,85,98].map(n => <option key={n} value={n}>{n}″</option>)}</select></label><label>Aspect ratio<select defaultValue="" onChange={(e) => updateVideoWall(w.id, { heightM: w.widthM / Number(e.target.value) })}><option value="" disabled>Custom</option><option value={16/9}>16:9</option><option value={4/3}>4:3</option><option value={21/9}>21:9</option><option value={9/16}>9:16</option></select></label></>}
+              <Zahl label={t('room.x', 'X m')} value={w.x} step={0.1} min={-10000} max={10000} title={t('room.wallX.title', 'Centre of the lower edge, from the left edge of the plan')} onChange={(v) => updateVideoWall(w.id, { x: v })} />
+              <Zahl label={t('room.y', 'Y m')} value={w.y} step={0.1} min={-10000} max={10000} title={t('room.wallY.title', 'Centre of the lower edge, from the top edge of the plan')} onChange={(v) => updateVideoWall(w.id, { y: v })} />
               <Zahl label={t('room.z', 'Z m')} value={w.bottomM} step={0.25} min={0} max={200} title={t('room.bottom.title', 'Lower edge above the floor')} onChange={(v) => updateVideoWall(w.id, { bottomM: v })} />
-              <Zahl label={t('room.rotation', 'Turn °')} value={w.rotationDeg} step={5} min={0} max={359} onChange={(v) => updateVideoWall(w.id, { rotationDeg: v })} />
+              <Zahl label={t('room.rotation', 'Turn °')} value={w.rotationDeg} step={0.1} min={-1000000000} max={1000000000} onChange={(v) => updateVideoWall(w.id, { rotationDeg: v })} />
               <Zahl label={t('room.width', 'Width m')} value={w.widthM} step={0.5} min={0.5} max={400} onChange={(v) => updateVideoWall(w.id, { widthM: v })} />
               <Zahl label={t('room.height', 'High m')} value={w.heightM} step={0.25} min={0.25} max={200} onChange={(v) => updateVideoWall(w.id, { heightM: v })} />
             </div>
           </div>
         );
       })}
+      <button onClick={() => addVideoWall('monitor')} className="text-bc-accent">+ Monitor</button>
       <button onClick={() => addVideoWall()} className="flex items-center gap-1 px-2 py-1 bg-bc-accent/20 text-bc-accent text-xs hover:bg-bc-accent/30 w-full justify-center">
         <FiPlus size={12} /> {t('room.addVideoWall', 'Video wall')}
       </button>

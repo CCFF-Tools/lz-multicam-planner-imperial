@@ -42,6 +42,7 @@
 // Knopf „Anmelden" beim Einreichen oeffnet den Dialog direkt auf „Device
 // library", die KI-Hinweise in der Seitenleiste auf „AI" (`initialSection`).
 // ───────────────────────────────────────────────────────────────────────────
+import { UnitsPreference } from '../ui/LengthInput';
 import { useEffect, useState } from 'react';
 import { FiCpu, FiDatabase, FiSliders, FiX } from 'react-icons/fi';
 import { APP_VERSION } from '../../store/useStore';
@@ -143,6 +144,7 @@ export default function SettingsDialog({ onClose, initialSection = 'general' }: 
           {section === 'library' && <DeviceLibrarySection />}
           {section === 'ai' && <AiSection />}
           {section === 'general' && (<>
+            <UnitsPreference />
           <section>
             <h3 className="text-sm font-semibold text-bc-text-bright">
               {t('settings.language', 'Language')}

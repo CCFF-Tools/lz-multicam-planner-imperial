@@ -23,7 +23,7 @@ export const VENUE_EXCHANGE_VERSION = 1 as const
 
 export interface VenueExchangePerson {
   id: string; x: number; y: number; height: number; label: string
-  width?: number; objectType?: string; pose?: 'standing' | 'sitting'; facing?: number; color?: string
+  rotationDeg?: number; width?: number; objectType?: string; pose?: 'standing' | 'sitting'; facing?: number; color?: string
 }
 /** Oeffnung in einer Wand: Lage ab (x1,y1) entlang der Wand, Bruestung
  *  (`bottom`) und Sturz (`top`) ueber dem Boden, alles in Metern. */

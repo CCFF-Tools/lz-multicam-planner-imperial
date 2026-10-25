@@ -1,3 +1,6 @@
+import { formatLength, parseLength } from '../../utils/units';
+import LengthInput from '../ui/LengthInput';
+import { useUnits } from '../../store/units';
 import { useStore, OBJECT_PRESETS } from '../../store/useStore';
 import { CAMERAS, getCameraById, getAdapterInfo, getEffectiveSensor, getCoverageStatus, getSpeedBooster, speedBoosterExists } from '../../data/cameras';
 import { LENSES, getLensById, getCompatibleLenses, pickInitialMountAndLens, integratedLensesFor, lensFitsCamera, GENERIC_INTEGRATED_LENS } from '../../data/lenses';
@@ -213,6 +216,8 @@ function CameraCard({
   toggleOpen: (camId: string) => void;
 }) {
   const { t } = useTranslation();
+  const units = useUnits(s => s.units);
+  const length = (m: number) => formatLength(m, units) + (units === 'metric' ? ' m' : '');
   const {
     cameras,
     selectedCameraId,
@@ -474,7 +479,7 @@ function CameraCard({
           <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-[10.5px] text-bc-dim" style={{ paddingLeft: '4px' }}>
             <span className="text-bc-muted">{camDef?.model ?? '—'}</span>
             <span>{mountTypeLabel(t, cam.mountType ?? 'tripod')}</span>
-            <span className="tabular-nums">{cam.z.toFixed(2)} m</span>
+            <span className="tabular-nums">{length(cam.z)}</span>
             <span className="tabular-nums">{cam.focalLength.toFixed(0)} mm</span>
             {fov && <span className="tabular-nums">{fov.horizontalDeg.toFixed(0)}°</span>}
           </div>
@@ -1088,7 +1093,7 @@ function CameraCard({
             />
           </Group>
 
-          <Group id="place" title={t('sidebar.cam.placement', 'Position & rig')} summary={`${mountTypeLabel(t, cam.mountType ?? 'tripod')} · ${cam.z.toFixed(2)} m`}>
+          <Group id="place" title={t('sidebar.cam.placement', 'Position & rig')} summary={`${mountTypeLabel(t, cam.mountType ?? 'tripod')} · ${length(cam.z)}`}>
           <FieldRow label={t('sidebar.cam.position', 'Position (m)')}>
             <div className="grid grid-cols-2 gap-2">
               <input
@@ -1293,12 +1298,12 @@ function CameraCard({
             id="result"
             title={t('sidebar.cam.result', 'Result')}
             defaultOpen={false}
-            summary={fov ? `${fov.horizontalDeg.toFixed(0)}° · ${fov.imageWidthAtDistance.toFixed(1)} m breit` : undefined}
+            summary={fov ? `${fov.horizontalDeg.toFixed(0)}° · ${length(fov.imageWidthAtDistance)} breit` : undefined}
           >
             {fov && (
               <>
                 <Readout label={t('sidebar.cam.fovH', 'FOV horizontal')} value={`${fov.horizontalDeg.toFixed(1)}°`} />
-                <Readout label={`Bildbreite bei ${cam.focusDistance.toFixed(1)} m`} value={`${fov.imageWidthAtDistance.toFixed(2)} m`} />
+                <Readout label={`Bildbreite bei ${length(cam.focusDistance)}`} value={`${length(fov.imageWidthAtDistance)}`} />
                 {fov.squeeze > 1 && (
                   <Readout
                     label={t('sidebar.cam.anamorphic', 'Anamorphot')}
@@ -1310,9 +1315,9 @@ function CameraCard({
             )}
             {dof && (
               <>
-                <Readout label={t('sidebar.cam.dofNear', 'Near')} value={dof.nearLimit < 0.01 ? '0 m' : `${dof.nearLimit.toFixed(2)} m`} />
-                <Readout label={t('sidebar.cam.dofFar', 'Far')} value={dof.farLimit === Infinity ? '∞' : `${dof.farLimit.toFixed(2)} m`} />
-                <Readout label={t('sidebar.cam.dofTotal.label', 'Total depth of field')} value={dof.totalDof === Infinity ? '∞' : `${dof.totalDof.toFixed(2)} m`} tone="muted" />
+                <Readout label={t('sidebar.cam.dofNear', 'Near')} value={dof.nearLimit < 0.01 ? '0 m' : `${length(dof.nearLimit)}`} />
+                <Readout label={t('sidebar.cam.dofFar', 'Far')} value={dof.farLimit === Infinity ? '∞' : `${length(dof.farLimit)}`} />
+                <Readout label={t('sidebar.cam.dofTotal.label', 'Total depth of field')} value={dof.totalDof === Infinity ? '∞' : `${length(dof.totalDof)}`} tone="muted" />
               </>
             )}
             {effectiveSensor && effectiveSensor !== camDef?.sensor && (
@@ -2122,6 +2127,7 @@ function CameraCard({
 
 export default function Sidebar() {
   const { t } = useTranslation();
+  const units = useUnits(s => s.units);
   const {
     cameras, addCamera, venue, setVenue, showAllFov, toggleShowAllFov, showDof, toggleShowDof, clearAll,
     pixelsPerMeter, setPixelsPerMeter,
@@ -2189,11 +2195,12 @@ export default function Sidebar() {
       setCalibAxis(null);
       window.dispatchEvent(new CustomEvent('multicam-calibrate', { detail: { active: false, distanceM: 0, axis } }));
     } else {
-      const dist = axis === 'x' ? parseFloat(calibDistX) || 10 : parseFloat(calibDistY) || 10;
+      const dist = parseLength(axis === 'x' ? calibDistX : calibDistY, units);
+      if (dist === undefined || !Number.isFinite(dist) || dist <= 0) return;
       setCalibAxis(axis);
       window.dispatchEvent(new CustomEvent('multicam-calibrate', { detail: { active: true, distanceM: dist, axis, autoResize, scaleLocked } }));
     }
-  }, [calibAxis, calibDistX, calibDistY, autoResize, scaleLocked]);
+  }, [calibAxis, calibDistX, calibDistY, autoResize, scaleLocked, units]);
 
   // Listen for calibration-done event from Venue2D to reset button state
   useEffect(() => {
@@ -2230,22 +2237,12 @@ export default function Sidebar() {
             </label>
             <div className="grid grid-cols-2 gap-2">
               <label>
-                <span className="text-bc-muted">{t('sidebar.widthM', 'Width (m)')}</span>
-                <input
-                  type="number"
-                  className="w-full border border-bc-border bg-bc-panel-raised px-2 py-1 text-bc-text-bright"
-                  value={venue.widthM}
-                  onChange={(e) => setVenue({ ...venue, widthM: parseFloat(e.target.value) || 10 })}
-                />
+                <span className="text-bc-muted">Width ({units === 'metric' ? 'm' : 'ft / in'})</span>
+                <LengthInput className="w-full border border-bc-border bg-bc-panel-raised px-2 py-1 text-bc-text-bright" value={venue.widthM} min={0.01} onChange={(v) => setVenue({ ...venue, widthM: v })} />
               </label>
               <label>
-                <span className="text-bc-muted">{t('sidebar.depthM', 'Depth (m)')}</span>
-                <input
-                  type="number"
-                  className="w-full border border-bc-border bg-bc-panel-raised px-2 py-1 text-bc-text-bright"
-                  value={venue.heightM}
-                  onChange={(e) => setVenue({ ...venue, heightM: parseFloat(e.target.value) || 10 })}
-                />
+                <span className="text-bc-muted">Depth ({units === 'metric' ? 'm' : 'ft / in'})</span>
+                <LengthInput className="w-full border border-bc-border bg-bc-panel-raised px-2 py-1 text-bc-text-bright" value={venue.heightM} min={0.01} onChange={(v) => setVenue({ ...venue, heightM: v })} />
               </label>
             </div>
             <Regler
@@ -2382,8 +2379,8 @@ export default function Sidebar() {
                   </p>
                   <div className="flex gap-1 items-end">
                     <label className="flex-1">
-                      <span className="text-bc-dim">{scaleLocked ? t('sidebar.knownDistance', 'Known distance (m)') : t('sidebar.knownXDistance', 'Known X distance (m)')}</span>
-                      <input type="number" min={0.1} step={0.1}
+                      <span className="text-bc-dim">Known {scaleLocked ? '' : 'X '}distance ({units === 'metric' ? 'm' : 'ft / in'})</span>
+                      <input type="text"
                         className="w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright"
                         value={calibDistX}
                         onChange={(e) => setCalibDistX(e.target.value)} />
@@ -2398,8 +2395,8 @@ export default function Sidebar() {
                   {!scaleLocked && (
                     <div className="flex gap-1 items-end">
                       <label className="flex-1">
-                        <span className="text-bc-dim">{t('sidebar.knownYDistance', 'Known Y distance (m)')}</span>
-                        <input type="number" min={0.1} step={0.1}
+                        <span className="text-bc-dim">Known Y distance ({units === 'metric' ? 'm' : 'ft / in'})</span>
+                        <input type="text"
                           className="w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright"
                           value={calibDistY}
                           onChange={(e) => setCalibDistY(e.target.value)} />
@@ -2748,7 +2745,9 @@ export default function Sidebar() {
                   <span className="text-bc-dim text-[10px] w-6 text-center">{icon}</span>
                   <input className="bg-transparent text-bc-text-bright text-xs w-16 outline-none" value={p.label}
                     onChange={(e) => updatePerson(p.id, { label: e.target.value })} />
-                  <span className="text-bc-dim">{p.height}m</span>
+                  <label>Angle °<input aria-label={`${p.label} angle`} type="number" step="0.1" value={p.rotationDeg ?? ''} placeholder="Auto" className="w-16 bg-bc-panel" onChange={(e) => updatePerson(p.id, { rotationDeg: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
+                  <LengthInput aria-label={`${p.label} height`} value={p.height} onChange={(height) => updatePerson(p.id, { height })} />
+                  <LengthInput aria-label={`${p.label} width`} value={p.width} onChange={(width) => updatePerson(p.id, { width })} />
                   <input
                     type="color"
                     className="w-5 h-5 border border-bc-border cursor-pointer bg-transparent"

@@ -45,6 +45,8 @@ export interface VenueSeatingBlock {
 }
 
 export interface VenueVideoWall {
+  displayType?: 'led-wall' | 'monitor'
+
   id: string
   label?: string
   /** Mitte der Unterkante. */
@@ -109,6 +111,7 @@ export function videowandNormal(w: VenueVideoWall): Required<Omit<VenueVideoWall
     label: w.label ?? '',
     x: zahl(w.x, 0, -1e4, 1e4),
     y: zahl(w.y, 0, -1e4, 1e4),
+    displayType: w.displayType === 'monitor' ? 'monitor' : 'led-wall',
     widthM: zahl(w.widthM, 6, 0.2, 400),
     heightM: zahl(w.heightM, 3.375, 0.2, 200),
     bottomM: zahl(w.bottomM, 1, 0, 200),

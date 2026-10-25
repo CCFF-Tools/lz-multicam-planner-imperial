@@ -265,6 +265,8 @@ export type WallFit = 'tile' | 'scale-v' | 'scale-h' | 'stretch';
 
 // ── Reference person / object in venue ──
 export interface ReferencePerson {
+  /** Clockwise plan angle; absent preserves automatic facing. */
+  rotationDeg?: number;
   id: string;
   x: number; // metres from left
   y: number; // metres from top

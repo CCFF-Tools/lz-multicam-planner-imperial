@@ -1,3 +1,5 @@
+import { useUnits } from '../../store/units';
+import { formatLength, parseLength } from '../../utils/units';
 // ───────────────────────────────────────────────────────────────────────────
 // DER Regler der App — jeder Schieberegler laeuft hier durch (Objektiv,
 // Pan/Tilt, Raum, Plan, Licht, Rechner).
@@ -98,13 +100,13 @@ export default function Regler({
   schritt,
   raster,
   marken,
-  formatMarke,
-  format,
+  formatMarke: originalMarke,
+  format: originalFormat,
   dezimalen,
-  feldText: feldTextVon,
-  feldLesen,
+  feldText: originalText,
+  feldLesen: originalLesen,
   praefix,
-  einheit,
+  einheit: originalEinheit,
   standard,
   fuellungAb,
   onStep,
@@ -117,6 +119,13 @@ export default function Regler({
   title,
 }: ReglerProps) {
   const { t } = useTranslation();
+  const units = useUnits(s => s.units);
+  const imperial = originalEinheit === 'm' && units === 'imperial';
+  const format = imperial ? (v: number) => formatLength(v, units) : originalFormat;
+  const formatMarke = imperial ? format : originalMarke;
+  const feldTextVon = imperial ? format : originalText;
+  const feldLesen = imperial ? (s: string) => parseLength(s, units) ?? null : originalLesen;
+  const einheit = imperial ? 'ft / in' : originalEinheit;
   const bahnRef = useRef<HTMLDivElement>(null);
   const feldRef = useRef<HTMLInputElement>(null);
   const [bahnPx, setBahnPx] = useState(0);
