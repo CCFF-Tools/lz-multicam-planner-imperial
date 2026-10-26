@@ -48,7 +48,7 @@ import { profileForMount } from '../../utils/motionProfile';
 import { drawCameraView, wallSurfaces, type ProjectedPerson } from './cameraViewRenderer';
 import LookToggle from '../Render3D/LookToggle';
 import { bereit3D, render3D, useBedarf3D, useBildVersion3D, useKameraLook } from '../Render3D/kameraBild3d';
-import { assignPreset, groupPresets, hasPose, type PreviewPreset } from '../../utils/previewPreset';
+import { adjacentPreset, assignPreset, groupPresets, hasPose, matchingPreset, type PreviewPreset } from '../../utils/previewPreset';
 import { formatAperture, formatDistance, niceTicks, stepAlong, stepStop, stopsInRange } from '../../utils/lensScale';
 import { useUnits } from '../../store/units';
 import { formatLengthWithUnit } from '../../utils/units';
@@ -119,6 +119,8 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
   const ov = { ...OVERLAYS_START, ...overlays };
   const [steuerungOffen, setSteuerungOffen] = useGeteilt<boolean>(STEUERUNG_KEY, false);
   const [presets, setPresets] = useGeteilt<PreviewPreset[]>(PRESETS_KEY, KEINE_PRESETS);
+  const presetGroups = groupPresets(presets, cam?.id, cameras.map((c) => c.id));
+  const activePreset = cam ? matchingPreset(presetGroups.own, cam) : undefined;
   const [transitionMode, setTransitionMode] = useGeteilt<ShotTransition>(TRANSITION_MODE_KEY, 'off');
   const [transitionSeconds, setTransitionSeconds] = useGeteilt<number>(TRANSITION_SEC_KEY, 6);
 
@@ -340,6 +342,39 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
           </button>
         </div>
       )}
+      {cam && (
+        <div className="flex min-w-0 items-center gap-1" aria-label={t('preview.quickPreset', 'Preset recall')}>
+          <button
+            type="button"
+            className="bc-btn-soft px-0"
+            disabled={presetGroups.own.length === 0}
+            onClick={() => {
+              const p = adjacentPreset(presetGroups.own, activePreset?.id, -1);
+              if (p) applyPreset(p);
+            }}
+            aria-label={t('preview.prevPreset', 'Previous preset')}
+            title={t('preview.prevPreset', 'Previous preset')}
+          >
+            <FiChevronLeft size={18} />
+          </button>
+          <span className="max-w-40 min-w-16 truncate px-1 text-center text-sm font-semibold text-bc-text-bright" title={activePreset?.name ?? t('preview.customPreset', 'Custom')}>
+            {activePreset?.name ?? t('preview.customPreset', 'Custom')}
+          </span>
+          <button
+            type="button"
+            className="bc-btn-soft px-0"
+            disabled={presetGroups.own.length === 0}
+            onClick={() => {
+              const p = adjacentPreset(presetGroups.own, activePreset?.id, 1);
+              if (p) applyPreset(p);
+            }}
+            aria-label={t('preview.nextPreset', 'Next preset')}
+            title={t('preview.nextPreset', 'Next preset')}
+          >
+            <FiChevronRight size={18} />
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -410,8 +445,6 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
     });
   };
   const deletePreset = (id: string) => setPresets((alt) => alt.filter((p) => p.id !== id));
-  const presetGroups = groupPresets(presets, cam.id, cameras.map((c) => c.id));
-
   const aufnehmen = () => {
     const res = captureCurrentShot();
     setShotHint(

@@ -52,6 +52,8 @@ export const room: Record<string, string> = {
   'room.addSeated': 'Sitzfläche',
   'room.addStanding': 'Stehfläche',
   'room.videoWalls': 'Videowände',
+  'room.monitor.mountingHeight': 'Montagemitte ({unit})',
+  'room.monitor.mountingHeight.title': 'Höhe der Bildschirmmitte über dem Boden',
   'room.videoWall': 'Videowand',
   'room.x': 'X ({unit})',
   'room.y': 'Y ({unit})',

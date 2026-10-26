@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adjacentPreset,
   assignPreset,
   copyPresetToCamera,
   groupPresets,
   hasPose,
+  matchingPreset,
   type PreviewPreset,
 } from '../utils/previewPreset';
+import type { VenueCamera } from '../types';
 
 const preset = (id: string, over: Partial<PreviewPreset> = {}): PreviewPreset => ({
   id,
@@ -99,5 +102,30 @@ describe('hasPose', () => {
 
   it('meldet rein optische Presets als ohne Position', () => {
     expect(hasPose(preset('a'))).toBe(false);
+  });
+});
+
+describe('quick preset recall', () => {
+  const camera: Pick<VenueCamera, 'x' | 'y' | 'z' | 'pan' | 'tilt' | 'focalLength' | 'aperture' | 'focusDistance' | 'trackOffset'> = {
+    x: 2, y: 3, z: 1.5, pan: 350, tilt: -5,
+    focalLength: 35, aperture: 2.8, focusDistance: 8, trackOffset: 0,
+  };
+  const one = preset('one', { cameraId: 'cam-1', ...camera });
+  const two = preset('two', { cameraId: 'cam-1', focalLength: 70 });
+
+  it('identifies the current preset and tolerates equivalent wrapped angles', () => {
+    expect(matchingPreset([one, two], { ...camera, pan: -10 })?.id).toBe('one');
+  });
+
+  it('shows custom after a meaningful camera adjustment', () => {
+    expect(matchingPreset([one, two], { ...camera, focalLength: 36 })).toBeUndefined();
+  });
+
+  it('cycles both directions and enters the list from Custom', () => {
+    expect(adjacentPreset([one, two], undefined, 1)?.id).toBe('one');
+    expect(adjacentPreset([one, two], undefined, -1)?.id).toBe('two');
+    expect(adjacentPreset([one, two], 'one', -1)?.id).toBe('two');
+    expect(adjacentPreset([one, two], 'two', 1)?.id).toBe('one');
+    expect(adjacentPreset([], undefined, 1)).toBeUndefined();
   });
 });
