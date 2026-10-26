@@ -9,8 +9,11 @@ import { LABEL_FONT } from './labelFont';
 import type { ReferencePerson, StageObjectType } from '../../types';
 import { erzeugeMensch, publikumsVariante } from '../../avplan/scene3d';
 import { personDarstellung, type PersonDarstellung } from '../../utils/personGestalt';
+import { useUnits } from '../../store/units';
+import { formatLengthWithUnit } from '../../utils/units';
 
 export function PersonMesh({ x, z, height, label, objectType, color, showLabel = true }: { x: number; z: number; height: number; label: string; objectType?: StageObjectType; color?: string; showLabel?: boolean }) {
+  const units = useUnits((s) => s.units);
   const type = objectType ?? 'person';
   const defaultColor =
     type === 'drums' ? '#ef4444' :
@@ -176,7 +179,7 @@ export function PersonMesh({ x, z, height, label, objectType, color, showLabel =
       {showLabel && (
         <Text font={LABEL_FONT} position={[0, height * 0.5, 0]} fontSize={0.22} color={col} anchorX="center"
           outlineWidth={0.015} outlineColor="#000000">
-          {label} ({height}m)
+          {label} ({formatLengthWithUnit(height, units)})
         </Text>
       )}
     </group>

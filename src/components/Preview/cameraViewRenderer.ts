@@ -24,6 +24,8 @@ import type { StageFace } from '../../utils/stageBody';
 import { groundHeightAt, stageColor, stageFaces, stageLabelAnchor, stageOpacity } from '../../utils/stageBody';
 import { alphaSuffix, shadeHex } from '../../utils/color';
 import { format, translate } from '../../i18n';
+import { useUnits } from '../../store/units';
+import { FEET_PER_METER, formatLengthWithUnit, type Units } from '../../utils/units';
 import {
   DEFAULT_PATTERN_ROWS,
   paintWallSurface,
@@ -122,6 +124,7 @@ export interface DrawCameraViewArgs {
   scene: CameraViewScene;
   overlays: CameraViewOverlays;
   t: TFn;
+  units?: Units;
   surfaces?: WallSurfaces;
   /**
    * Gerendertes Kamerabild (#167): ersetzt die gezeichnete Szene, die
@@ -139,6 +142,8 @@ export interface DrawCameraViewArgs {
  */
 export function drawCameraView(args: DrawCameraViewArgs): ProjectedPerson[] | undefined {
   const { canvas, cssW, dpr, cam, bare, t } = args;
+  const units = args.units ?? 'metric';
+  const length = (meters: number) => formatLengthWithUnit(meters, units);
   const { venue, persons, cameras, customCameras, customLenses } = args.scene;
   const walls = resolveWallHeights(args.scene.walls, defaultWallHeight(venue));
   const { grid: showGrid, safeAreas: showSafeAreas, thirds: showThirds, crosshair: showCrosshair } = args.overlays;
@@ -846,7 +851,7 @@ export function drawCameraView(args: DrawCameraViewArgs): ProjectedPerson[] | un
       blurPx = Math.min(12, outOfFocus * (cam.focalLength / 50) / Math.max(1, cam.aperture) * 0.6);
     }
     if (blurPx > 0.5) ctx.filter = `blur(${blurPx.toFixed(1)}px)`;
-    drawPerson(feetSx, feetSy, headSy, feetProj.dist, person.objectType, `${person.label} (${person.height.toFixed(1)}m)`, person.color);
+    drawPerson(feetSx, feetSy, headSy, feetProj.dist, person.objectType, `${person.label} (${length(person.height)})`, person.color);
     if (blurPx > 0.5) ctx.filter = 'none';
   });
 
@@ -882,7 +887,8 @@ export function drawCameraView(args: DrawCameraViewArgs): ProjectedPerson[] | un
     ctx.fillStyle = '#000000cc';
     ctx.fillRect(0, rulerY, W, rulerH);
 
-    const niceSteps = [0.25, 0.5, 1, 2, 5, 10, 20, 50, 100];
+    const niceSteps = [0.25, 0.5, 1, 2, 5, 10, 20, 50, 100]
+      .map((value) => units === 'metric' ? value : value / FEET_PER_METER);
     const rawStep = imgW / 8;
     const step = niceSteps.find((s) => s >= rawStep) ?? rawStep;
     const halfImgW = imgW / 2;
@@ -898,11 +904,11 @@ export function drawCameraView(args: DrawCameraViewArgs): ProjectedPerson[] | un
       const pxL = W / 2 - (m / imgW) * W;
       if (pxR <= W) {
         ctx.beginPath(); ctx.moveTo(pxR, rulerY); ctx.lineTo(pxR, rulerY + 6); ctx.stroke();
-        ctx.fillText(`${m.toFixed(m < 1 ? 2 : 1)}m`, pxR, rulerY + 16);
+        ctx.fillText(length(m), pxR, rulerY + 16);
       }
       if (m > 0 && pxL >= 0) {
         ctx.beginPath(); ctx.moveTo(pxL, rulerY); ctx.lineTo(pxL, rulerY + 6); ctx.stroke();
-        ctx.fillText(`${m.toFixed(m < 1 ? 2 : 1)}m`, pxL, rulerY + 16);
+        ctx.fillText(length(m), pxL, rulerY + 16);
       }
   }
   ctx.strokeStyle = '#ccc';
@@ -924,7 +930,7 @@ export function drawCameraView(args: DrawCameraViewArgs): ProjectedPerson[] | un
     const py = groundYClamped - (m / imgH) * H;
     if (py < 0 || py > H - rulerH) continue;
     ctx.beginPath(); ctx.moveTo(vRulerX, py); ctx.lineTo(vRulerX + 5, py); ctx.stroke();
-    ctx.fillText(`${m.toFixed(m < 1 ? 2 : 1)}m`, W - 3, py + 3);
+    ctx.fillText(length(m), W - 3, py + 3);
   }
 
   }
@@ -961,10 +967,10 @@ export function drawCameraView(args: DrawCameraViewArgs): ProjectedPerson[] | un
 
     // Distance readout under the crosshair: focus distance + nearest in-frame
     // subject. Helps the operator verify pull-focus while panning.
-    const lines: string[] = [format(t('preview.crosshairFocus', 'focus {d}m'), { d: cam.focusDistance.toFixed(1) })];
+    const lines: string[] = [`focus ${length(cam.focusDistance)}`];
     if (nearestCrosshair) {
       const n = nearestCrosshair as { label: string; dist: number };
-      lines.push(`${n.label}: ${n.dist.toFixed(1)}m`);
+      lines.push(`${n.label}: ${length(n.dist)}`);
     }
     ctx.fillStyle = '#000000aa';
     ctx.font = '10px monospace';
@@ -1050,6 +1056,7 @@ export function renderCamera(camId: string, canvas: HTMLCanvasElement, cssW: num
     scene: { venue: s.venue, persons: s.persons, walls: s.walls, cameras: s.cameras, customCameras: s.customCameras, customLenses: s.customLenses },
     overlays: KACHEL_OVERLAYS,
     t: (key, en) => translate(s.language, key, en),
+    units: useUnits.getState().units,
   });
   return projected !== undefined && canvas.width > 0;
 }

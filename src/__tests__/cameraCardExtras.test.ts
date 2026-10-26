@@ -78,6 +78,10 @@ describe('nichts wird geraten und nichts bekommt einen Vorgabewert', () => {
     expect(commsLines(cam())).toHaveLength(4);
   });
 
+  it('schreibt die Podesthöhe in der gewählten Einheit', () => {
+    expect(riggingLines(cam({ rigging: { riserHeightM: 1.8 } }), 'imperial')[1]).toContain("5' 10.9\"");
+  });
+
   it('erfindet kein Kit', () => {
     expect(kitLines(cam())).toEqual([]);
     expect(kitLines(cam({ kit: ['Stativ', '  ', 'Regenschutz'] }))).toEqual([
@@ -211,7 +215,7 @@ describe('was auf dem Blatt steht, geht in den Stempel', () => {
   });
 
   it('wird von der Karte auch wirklich mitgegeben', () => {
-    expect(panelQuelle).toMatch(/extras: cardExtraRows\(targetCam\)/);
+    expect(panelQuelle).toMatch(/extras: cardExtraRows\(targetCam, units\)/);
   });
 });
 
@@ -273,7 +277,7 @@ describe('normaliseCardExtras', () => {
 
 describe('die Oberfläche', () => {
   it('zeigt die Befunde dort, wo man sie beheben kann', () => {
-    expect(sidebarQuelle).toMatch(/const kartenBefunde = cardFindings\(cam, cameras\)/);
+    expect(sidebarQuelle).toMatch(/const kartenBefunde = cardFindings\(cam, cameras, units\)/);
     expect(sidebarQuelle).toMatch(/CARD_FINDING_LABEL\[f\.kind\]/);
   });
 

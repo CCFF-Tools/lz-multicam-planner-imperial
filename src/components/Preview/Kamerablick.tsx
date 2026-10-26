@@ -50,6 +50,8 @@ import LookToggle from '../Render3D/LookToggle';
 import { bereit3D, render3D, useBedarf3D, useBildVersion3D, useKameraLook } from '../Render3D/kameraBild3d';
 import { assignPreset, groupPresets, hasPose, type PreviewPreset } from '../../utils/previewPreset';
 import { formatAperture, formatDistance, niceTicks, stepAlong, stepStop, stopsInRange } from '../../utils/lensScale';
+import { useUnits } from '../../store/units';
+import { formatLengthWithUnit } from '../../utils/units';
 
 /** Kuerzeste sinnvolle Fokusdistanz des Reglers (m). */
 const FOCUS_MIN = 0.5;
@@ -94,6 +96,8 @@ export interface KamerablickProps {
 export default function Kamerablick({ kopf }: KamerablickProps) {
   const { cameras, selectedCameraId, venue, persons, walls, selectNextCamera, selectPrevCamera } = useStore();
   const { t } = useTranslation();
+  const units = useUnits((s) => s.units);
+  const length = (meters: number) => formatLengthWithUnit(meters, units);
   const rootRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -171,13 +175,14 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
       scene: { venue, persons, walls, cameras, customCameras, customLenses },
       overlays: { grid: ov.grid, safeAreas: ov.safeAreas, thirds: ov.thirds, crosshair: ov.crosshair },
       t,
+      units,
       hintergrund: gerendert ? bildPuffer.current : null,
     });
     if (!target && projected) {
       projectedPersons.current = projected;
       setProjectedCount(projected.length);
     }
-  }, [cam, venue, persons, walls, cameras, ov.grid, ov.safeAreas, ov.thirds, ov.crosshair, t, look]);
+  }, [cam, venue, persons, walls, cameras, ov.grid, ov.safeAreas, ov.thirds, ov.crosshair, t, units, look]);
 
   // Synchron nach jedem Render, damit Schwenken per Zug ohne Ruckeln mitgeht.
   useLayoutEffect(() => { draw(); }, [draw, imageTick, bildVersion]);
@@ -475,13 +480,13 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
       <div className={breit ? 'grid grid-cols-2 gap-1.5' : 'contents'}>
         <DataCell label={t('preview.data.focalLength', 'Focal length')} value={`${cam.focalLength.toFixed(1)} mm`} sub={cam.extenderActive > 1 ? `eff. ${(cam.focalLength * cam.extenderActive).toFixed(0)} mm` : `eq. ${fov.equivalentFocalLength.toFixed(0)} mm`} />
         <DataCell label={t('preview.data.aperture', 'Aperture')} value={`f/${cam.aperture.toFixed(1)}`} sub={adapterInfo && adapterInfo.lightLossStops !== 0 ? `eff. T${(cam.aperture * Math.pow(2, adapterInfo.lightLossStops / 2)).toFixed(1)}` : undefined} />
-        <DataCell label={t('preview.data.distance', 'Distance')} value={`${cam.focusDistance.toFixed(1)} m`} />
+        <DataCell label={t('preview.data.distance', 'Distance')} value={length(cam.focusDistance)} />
         <DataCell label={t('preview.data.fovH', 'FOV H')} value={`${fov.horizontalDeg.toFixed(1)}°`} sub={`V ${fov.verticalDeg.toFixed(1)}°`} />
-        <DataCell label={t('preview.data.imageWidth', 'Image width')} value={`${fov.imageWidthAtDistance.toFixed(1)} m`} sub={`@ ${cam.focusDistance.toFixed(0)} m`} />
-        <DataCell label={t('preview.data.imageHeight', 'Image height')} value={`${fov.imageHeightAtDistance.toFixed(1)} m`} sub={`@ ${cam.focusDistance.toFixed(0)} m`} />
-        <DataCell label={t('preview.data.dofNear', 'DoF Near')} value={dof.nearLimit < 0.01 ? '0 m' : `${dof.nearLimit.toFixed(2)} m`} />
-        <DataCell label={t('preview.data.dofFar', 'DoF Far')} value={dof.farLimit === Infinity ? '∞' : `${dof.farLimit.toFixed(2)} m`} />
-        <DataCell label={t('preview.data.dofTotal', 'DoF Total')} value={dof.totalDof === Infinity ? '∞' : `${dof.totalDof.toFixed(2)} m`} />
+        <DataCell label={t('preview.data.imageWidth', 'Image width')} value={length(fov.imageWidthAtDistance)} sub={`@ ${length(cam.focusDistance)}`} />
+        <DataCell label={t('preview.data.imageHeight', 'Image height')} value={length(fov.imageHeightAtDistance)} sub={`@ ${length(cam.focusDistance)}`} />
+        <DataCell label={t('preview.data.dofNear', 'DoF Near')} value={length(dof.nearLimit < 0.01 ? 0 : dof.nearLimit)} />
+        <DataCell label={t('preview.data.dofFar', 'DoF Far')} value={dof.farLimit === Infinity ? '∞' : length(dof.farLimit)} />
+        <DataCell label={t('preview.data.dofTotal', 'DoF Total')} value={dof.totalDof === Infinity ? '∞' : length(dof.totalDof)} />
       </div>
     </section>
   );
@@ -634,7 +639,7 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
                 <span className="text-xs font-semibold text-bc-muted">{t('preview.presets', 'Presets')}</span>
                 {presetGroups.own.map((p) => (
                   <span key={p.id} className="inline-flex items-center rounded-bc-full bg-bc-panel-raised text-xs text-bc-text">
-                    <button type="button" className="rounded-bc-full pl-3 pr-1 hover:text-bc-text-bright" onClick={() => applyPreset(p)} title={`${p.focalLength.toFixed(0)}mm · f/${p.aperture.toFixed(1)} · ${p.focusDistance.toFixed(1)}m`}>
+                    <button type="button" className="rounded-bc-full pl-3 pr-1 hover:text-bc-text-bright" onClick={() => applyPreset(p)} title={`${p.focalLength.toFixed(0)}mm · f/${p.aperture.toFixed(1)} · ${length(p.focusDistance)}`}>
                       {p.name}{hasPose(p) && <span className="ml-1 text-bc-accent" title={t('preview.preset.hasPose', 'contains camera position')}>◈</span>}
                     </button>
                     <button type="button" className="rounded-bc-full px-1.5 text-bc-dim hover:text-bc-red-text" onClick={() => deletePreset(p.id)} aria-label={format(t('preview.deletePresetNamed', 'Delete preset {name}'), { name: p.name })} title={t('preview.deletePreset', 'Delete preset')}>

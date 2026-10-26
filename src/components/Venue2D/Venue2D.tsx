@@ -1,5 +1,5 @@
 import { useUnits } from '../../store/units';
-import { formatLength } from '../../utils/units';
+import { formatDimensions, formatLength } from '../../utils/units';
 import { Stage, Layer, Rect, Wedge, Arc, Circle, Text, Group, Line, Image as KImage, Transformer } from 'react-konva';
 import { useStore } from '../../store/useStore';
 import { foreignFixturesFrom, cctToColor } from '../../utils/foreignView';
@@ -873,7 +873,7 @@ export default function Venue2D() {
             <Text
               x={4}
               y={s.height * ppm - 16}
-              text={`${s.width}×${s.height}m${stageTopZ(s) > 0 ? ` · ${stageTopZ(s).toFixed(2)}m hoch` : ''}`}
+              text={`${formatDimensions(s.width, s.height, units)}${stageTopZ(s) > 0 ? ` · ${length(stageTopZ(s))} high` : ''}`}
               fontSize={9}
               fill={stageColor(s) + '88'}
             />

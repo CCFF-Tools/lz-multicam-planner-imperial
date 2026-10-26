@@ -7,6 +7,8 @@ import { useStore } from '../../store/useStore';
 import { useTranslation, format } from '../../i18n';
 import Regler from '../ui/Regler';
 import { formatDistance, niceTicks, stepStop, stopsInRange } from '../../utils/lensScale';
+import { useUnits } from '../../store/units';
+import { formatLengthWithUnit } from '../../utils/units';
 
 /**
  * FOV- und Schaerfentiefe-Rechner.
@@ -40,6 +42,8 @@ import { formatDistance, niceTicks, stepStop, stopsInRange } from '../../utils/l
  */
 export default function Calculator() {
   const { t } = useTranslation();
+  const units = useUnits((s) => s.units);
+  const length = (meters: number) => formatLengthWithUnit(meters, units);
   const cameras = useStore((s) => s.cameras);
   const customCameras = useStore((s) => s.customCameras);
   const customLenses = useStore((s) => s.customLenses);
@@ -217,8 +221,8 @@ export default function Calculator() {
             <div>{t('sidebar.calc.horizontal', 'Horizontal:')} <strong>{fov.horizontalDeg.toFixed(2)}°</strong></div>
             <div>{t('sidebar.calc.vertical', 'Vertical:')} <strong>{fov.verticalDeg.toFixed(2)}°</strong></div>
             <div>{t('sidebar.calc.diagonal', 'Diagonal:')} <strong>{fov.diagonalDeg.toFixed(2)}°</strong></div>
-            <div className="pt-2">{t('sidebar.calc.imageWidth', 'Image width:')} <strong>{fov.imageWidthAtDistance.toFixed(2)}m</strong></div>
-            <div>{t('sidebar.calc.imageHeight', 'Image height:')} <strong>{fov.imageHeightAtDistance.toFixed(2)}m</strong></div>
+            <div className="pt-2">{t('sidebar.calc.imageWidth', 'Image width:')} <strong>{length(fov.imageWidthAtDistance)}</strong></div>
+            <div>{t('sidebar.calc.imageHeight', 'Image height:')} <strong>{length(fov.imageHeightAtDistance)}</strong></div>
             <div className="pt-2">{t('sidebar.calc.eqFl', '35mm eq. FL:')} <strong>{fov.equivalentFocalLength.toFixed(0)}mm</strong></div>
           </div>
         </div>
@@ -226,16 +230,16 @@ export default function Calculator() {
         <div className="rounded-bc-m border border-bc-border bg-bc-panel-raised p-4">
           <h3 className="text-sm font-bold text-bc-green-text mb-2">{t('sidebar.calc.depthOfField', 'Depth of Field')}</h3>
           <div className="space-y-1 text-sm text-bc-text">
-            <div>{t('sidebar.calc.near', 'Near:')} <strong>{dof.nearLimit < 0.01 ? '0' : dof.nearLimit.toFixed(2)}m</strong></div>
-            <div>{t('sidebar.calc.far', 'Far:')} <strong>{dof.farLimit === Infinity ? '∞' : dof.farLimit.toFixed(2) + 'm'}</strong></div>
-            <div>{t('sidebar.calc.totalDof', 'Total DoF:')} <strong>{dof.totalDof === Infinity ? '∞' : dof.totalDof.toFixed(2) + 'm'}</strong></div>
-            <div className="pt-2">{t('sidebar.calc.hyperfocal', 'Hyperfocal:')} <strong>{dof.hyperfocal.toFixed(2)}m</strong></div>
+            <div>{t('sidebar.calc.near', 'Near:')} <strong>{length(dof.nearLimit < 0.01 ? 0 : dof.nearLimit)}</strong></div>
+            <div>{t('sidebar.calc.far', 'Far:')} <strong>{dof.farLimit === Infinity ? '∞' : length(dof.farLimit)}</strong></div>
+            <div>{t('sidebar.calc.totalDof', 'Total DoF:')} <strong>{dof.totalDof === Infinity ? '∞' : length(dof.totalDof)}</strong></div>
+            <div className="pt-2">{t('sidebar.calc.hyperfocal', 'Hyperfocal:')} <strong>{length(dof.hyperfocal)}</strong></div>
             <div>{t('sidebar.calc.coc', 'CoC:')} <strong>{(dof.circleOfConfusion * 1000).toFixed(1)}µm</strong></div>
           </div>
         </div>
 
         <div className="rounded-bc-m border border-bc-border bg-bc-panel-raised p-4 col-span-2">
-          <h3 className="text-sm font-bold text-bc-yellow-text mb-2">{t('sidebar.calc.personInFrame', 'Person in Frame (1.80m)')}</h3>
+          <h3 className="text-sm font-bold text-bc-yellow-text mb-2">{format(t('sidebar.calc.personInFrame', 'Person in frame ({height})'), { height: length(1.8) })}</h3>
           <div className="text-sm text-bc-text">
             {t('sidebar.calc.heightIn1080p', 'Height in 1080p:')} <strong>{personPx.toFixed(0)}px</strong> ({((personPx / 1080) * 100).toFixed(1)}% {t('sidebar.calc.ofFrame', 'of frame')})
           </div>

@@ -1,5 +1,6 @@
 import { useUnits } from '../../store/units';
-import { formatLength, parseLength } from '../../utils/units';
+import { formatLength } from '../../utils/units';
+import { ImperialLengthFields } from './LengthInput';
 // ───────────────────────────────────────────────────────────────────────────
 // DER Regler der App — jeder Schieberegler laeuft hier durch (Objektiv,
 // Pan/Tilt, Raum, Plan, Licht, Rechner).
@@ -123,9 +124,9 @@ export default function Regler({
   const imperial = originalEinheit === 'm' && units === 'imperial';
   const format = imperial ? (v: number) => formatLength(v, units) : originalFormat;
   const formatMarke = imperial ? format : originalMarke;
-  const feldTextVon = imperial ? format : originalText;
-  const feldLesen = imperial ? (s: string) => parseLength(s, units) ?? null : originalLesen;
-  const einheit = imperial ? 'ft / in' : originalEinheit;
+  const feldTextVon = originalText;
+  const feldLesen = originalLesen;
+  const einheit = originalEinheit;
   const bahnRef = useRef<HTMLDivElement>(null);
   const feldRef = useRef<HTMLInputElement>(null);
   const [bahnPx, setBahnPx] = useState(0);
@@ -307,42 +308,64 @@ export default function Regler({
         )}
         <span className="inline-flex shrink-0 items-center gap-0.5">
           {praefix && <span className="text-[11px] text-bc-dim">{praefix}</span>}
-          <input
-            ref={feldRef}
-            className="bc-regler-wert"
-            value={feldText}
-            inputMode="decimal"
-            disabled={disabled}
-            aria-label={`${label} — ${t('regler.value', 'value')}`}
-            title={t('regler.field.title', 'Type a value · Enter applies · ↑/↓ one step')}
-            data-regler-feld
-            onFocus={(e) => e.currentTarget.select()}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={uebernehmen}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                uebernehmen();
-                // Enter haengt die Felder einer Gruppe zur Kette: Wert, Enter,
-                // naechster Wert — der Ablauf beim Gleichstellen mehrerer Kameras.
-                const kette = e.currentTarget.closest('[data-regler-kette]');
-                const felder = kette ? Array.from(kette.querySelectorAll<HTMLInputElement>('[data-regler-feld]')) : [];
-                const naechstes = felder[felder.indexOf(e.currentTarget) + (e.shiftKey ? -1 : 1)];
-                if (naechstes) naechstes.focus();
-                else e.currentTarget.blur();
-              } else if (e.key === 'Escape') {
-                setDraft(null);
-                e.currentTarget.blur();
-              } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                e.preventDefault();
-                setDraft(null);
-                const dir = e.key === 'ArrowUp' ? 1 : -1;
-                if (onStep && !e.shiftKey) onStep(dir);
-                else onChange(schrittWert(value, dir, e.shiftKey, min, max, skala, schritt));
-              }
-            }}
-            style={{ width: `${Math.max(3, feldText.length) + 2.2}ch` }}
-          />
-          {einheit && <span className="text-[11px] text-bc-dim">{einheit}</span>}
+          {imperial ? (
+            <ImperialLengthFields
+              ref={feldRef}
+              value={value}
+              min={min}
+              max={max}
+              onChange={(meters) => meters !== undefined && onChange(Math.min(max, Math.max(min, meters)))}
+              inputClassName="bc-regler-wert"
+              className="w-36"
+              disabled={disabled}
+              ariaLabel={`${label} — ${t('regler.value', 'value')}`}
+              title={t('regler.field.title', 'Type a value · Enter applies · ↑/↓ one step')}
+              dataReglerField
+              onArrow={(dir, coarse) => {
+                if (onStep && !coarse) onStep(dir);
+                else onChange(schrittWert(value, dir, coarse, min, max, skala, schritt));
+              }}
+            />
+          ) : (
+            <>
+              <input
+                ref={feldRef}
+                className="bc-regler-wert"
+                value={feldText}
+                inputMode="decimal"
+                disabled={disabled}
+                aria-label={`${label} — ${t('regler.value', 'value')}`}
+                title={t('regler.field.title', 'Type a value · Enter applies · ↑/↓ one step')}
+                data-regler-feld
+                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => setDraft(e.target.value)}
+                onBlur={uebernehmen}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    uebernehmen();
+                    // Enter haengt die Felder einer Gruppe zur Kette: Wert, Enter,
+                    // naechster Wert — der Ablauf beim Gleichstellen mehrerer Kameras.
+                    const kette = e.currentTarget.closest('[data-regler-kette]');
+                    const felder = kette ? Array.from(kette.querySelectorAll<HTMLInputElement>('[data-regler-feld]')) : [];
+                    const naechstes = felder[felder.indexOf(e.currentTarget) + (e.shiftKey ? -1 : 1)];
+                    if (naechstes) naechstes.focus();
+                    else e.currentTarget.blur();
+                  } else if (e.key === 'Escape') {
+                    setDraft(null);
+                    e.currentTarget.blur();
+                  } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    setDraft(null);
+                    const dir = e.key === 'ArrowUp' ? 1 : -1;
+                    if (onStep && !e.shiftKey) onStep(dir);
+                    else onChange(schrittWert(value, dir, e.shiftKey, min, max, skala, schritt));
+                  }
+                }}
+                style={{ width: `${Math.max(3, feldText.length) + 2.2}ch` }}
+              />
+              {einheit && <span className="text-[11px] text-bc-dim">{einheit}</span>}
+            </>
+          )}
         </span>
         {notiz && <span className="truncate text-[11px] text-bc-yellow-text">· {notiz}</span>}
         <span className="ml-auto flex shrink-0 items-center gap-1">

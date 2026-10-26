@@ -46,6 +46,10 @@ export const chrome: Record<string, string> = {
   'settings.language': 'Sprache',
   'settings.language.desc':
     'Englisch ist die Quellsprache, Deutsch eine Übersetzung. Ein fehlender Eintrag fällt auf Englisch zurück.',
+  'settings.units': 'Einheiten',
+  'settings.units.desc': 'Die Geometrie bleibt in Metern gespeichert; diese Auswahl ändert Eingabe und Anzeige von Maßen.',
+  'settings.units.metric': 'Metrisch',
+  'settings.units.imperial': 'Imperial',
   'settings.theme': 'Darstellung',
   'settings.theme.desc':
     'Die Kamera-Vorschau bleibt, wie sie ist: sie zeigt einen simulierten Raum, und ein hellerer wäre eine andere Beleuchtung, kein anderes Aussehen. Die Planungsansicht in 3D folgt dem Thema, der Show-Look nicht.',

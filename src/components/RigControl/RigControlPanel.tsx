@@ -18,6 +18,8 @@ import { rigLimits } from '../../utils/rigLimits';
 import { profileForMount } from '../../utils/motionProfile';
 import { useTranslation, format } from '../../i18n';
 import { motionProfileLabel, mountTypeLabel, speedStepHint, speedStepLabel } from '../../i18n/mount';
+import { useUnits } from '../../store/units';
+import { formatLengthWithUnit, formatSpeed } from '../../utils/units';
 import {
   DEFAULT_SPEED_INDEX,
   DRIVE_KEYS,
@@ -174,6 +176,7 @@ function runTakePlayback(
  */
 export default function RigControlPanel({ eingebettet = false }: { eingebettet?: boolean } = {}) {
   const { t } = useTranslation();
+  const units = useUnits((s) => s.units);
   const cameras = useStore((s) => s.cameras);
   const selectedCameraId = useStore((s) => s.selectedCameraId);
   const selectCamera = useStore((s) => s.selectCamera);
@@ -407,6 +410,7 @@ export default function RigControlPanel({ eingebettet = false }: { eingebettet?:
   const takes = rigTakes.filter((t) => t.cameraId === cam.id);
   const otherTakes = rigTakes.filter((t) => t.cameraId !== cam.id);
   const hasTravel = limits.travelM > 0;
+  const length = (meters: number) => formatLengthWithUnit(meters, units);
 
   return (
     <div className={`${eingebettet ? '' : 'h-full overflow-auto bg-bc-panel'} text-xs text-bc-text-bright`} data-rig-control>
@@ -453,10 +457,10 @@ export default function RigControlPanel({ eingebettet = false }: { eingebettet?:
             ))}
           </div>
           <span className="ml-auto text-bc-faint">
-            {format(t('rig.limits', 'max {travel} m/s · {rot}°/s · {lift} m/s lift'), {
-              travel: profile.maxTravelMps.toFixed(2),
+            {format(t('rig.limits', 'max {travel} · {rot}°/s · {lift} lift'), {
+              travel: formatSpeed(profile.maxTravelMps, units),
               rot: profile.maxRotDps,
-              lift: profile.maxLiftMps.toFixed(2),
+              lift: formatSpeed(profile.maxLiftMps, units),
             })}
           </span>
         </div>
@@ -480,8 +484,8 @@ export default function RigControlPanel({ eingebettet = false }: { eingebettet?:
               onChange={(i) => { jogRef.current = i; startLoop(); }}
             />
             <div className="grid grid-cols-[repeat(auto-fit,minmax(6rem,1fr))] gap-1.5 text-[11px]">
-              <Readout label={t('rig.track', 'Track')} value={hasTravel ? `${(cam.trackOffset ?? 0).toFixed(2)} m` : '—'} sub={hasTravel ? `±${limits.travelM.toFixed(2)} m` : ''} />
-              <Readout label={t('rig.height', 'Height')} value={`${cam.z.toFixed(2)} m`} sub={`${limits.minHeightM.toFixed(2)}–${limits.maxHeightM.toFixed(2)}`} />
+              <Readout label={t('rig.track', 'Track')} value={hasTravel ? length(cam.trackOffset ?? 0) : '—'} sub={hasTravel ? `±${length(limits.travelM)}` : ''} />
+              <Readout label={t('rig.height', 'Height')} value={length(cam.z)} sub={`${length(limits.minHeightM)}–${length(limits.maxHeightM)}`} />
               <Readout label="Pan" value={`${cam.pan.toFixed(1)}°`} />
               <Readout label="Tilt" value={`${cam.tilt.toFixed(1)}°`} />
               <Readout label={t('rig.orientation', 'Orientation')} value={`${rigYaw(cam).toFixed(0)}°`} sub={cam.rigRotation === undefined ? t('rig.followsCamera', 'follows camera') : t('rig.fixedYaw', 'fixed')} />

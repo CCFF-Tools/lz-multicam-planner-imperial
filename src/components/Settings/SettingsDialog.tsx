@@ -145,7 +145,7 @@ export default function SettingsDialog({ onClose, initialSection = 'general' }: 
           {section === 'ai' && <AiSection />}
           {section === 'general' && (<>
             <UnitsPreference />
-          <section>
+          <section style={{ marginTop: '24px' }}>
             <h3 className="text-sm font-semibold text-bc-text-bright">
               {t('settings.language', 'Language')}
             </h3>

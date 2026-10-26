@@ -7,6 +7,7 @@
 import type { Shot, Shotlist } from '../types';
 import { TRANSITION_LABEL, transitionSeconds } from './cameraTransition';
 import { stampLine, type DocumentStamp } from './documentStamp';
+import { formatLengthWithUnit, type Units } from './units';
 
 /** Kachel-Geometrie des Kontaktbogens in Pixeln. */
 const TILE_W = 480;
@@ -25,9 +26,10 @@ export function sheetColumns(shotCount: number): number {
 }
 
 /** Kurzbeschreibung der Optik einer Kachel, z. B. "35mm · f/2.8 · 4.2m". */
-export function shotOpticsLabel(shot: Shot): string {
+export function shotOpticsLabel(shot: Shot, units: Units = 'metric'): string {
   const { focalLength, aperture, focusDistance } = shot.state;
-  return `${Math.round(focalLength)}mm · f/${aperture.toFixed(1)} · ${focusDistance.toFixed(1)}m`;
+  const distance = units === 'metric' ? `${focusDistance.toFixed(1)}m` : formatLengthWithUnit(focusDistance, units);
+  return `${Math.round(focalLength)}mm · f/${aperture.toFixed(1)} · ${distance}`;
 }
 
 /** Badge-Text der Fahrtdauer, z. B. "Schnell (3s)" bzw. "OFF". */
@@ -72,6 +74,7 @@ export async function renderStoryboardSheet(
   shotlist: Shotlist,
   venueName?: string,
   stamp?: DocumentStamp,
+  units: Units = 'metric',
 ): Promise<HTMLCanvasElement> {
   const { shots } = shotlist;
   const { width, height } = contactSheetSize(shots.length);
@@ -155,7 +158,7 @@ export async function renderStoryboardSheet(
     ty += 24;
     ctx.fillStyle = '#8b93a3';
     ctx.font = '14px system-ui, sans-serif';
-    ctx.fillText(clip(ctx, shotOpticsLabel(shot), TILE_W - 24), x + 12, ty);
+    ctx.fillText(clip(ctx, shotOpticsLabel(shot, units), TILE_W - 24), x + 12, ty);
 
     ty += 21;
     ctx.fillStyle = '#6f7787';
@@ -178,8 +181,9 @@ export async function exportStoryboardPng(
   shotlist: Shotlist,
   venueName?: string,
   stamp?: DocumentStamp,
+  units: Units = 'metric',
 ): Promise<void> {
-  const canvas = await renderStoryboardSheet(shotlist, venueName, stamp);
+  const canvas = await renderStoryboardSheet(shotlist, venueName, stamp, units);
   const url = canvas.toDataURL('image/png');
   const a = document.createElement('a');
   const safe = (shotlist.name || 'shotlist').replace(/[^\w-]+/g, '_');
@@ -207,6 +211,7 @@ export function buildStoryboardHtml(
   shotlist: Shotlist,
   venueName?: string,
   stamp?: DocumentStamp,
+  units: Units = 'metric',
 ): string {
   const tiles = shotlist.shots
     .map((shot, i) => {
@@ -218,7 +223,7 @@ export function buildStoryboardHtml(
   <div class="thumb">${img}<span class="num">${String(i + 1).padStart(2, '0')}</span></div>
   <figcaption>
     <div class="name">${esc(shot.name || `Shot ${i + 1}`)}</div>
-    <div class="meta">${esc(shotOpticsLabel(shot))}</div>
+    <div class="meta">${esc(shotOpticsLabel(shot, units))}</div>
     <div class="meta dim">Fahrt: ${esc(shotTransitionLabel(shot))}</div>
     ${note}
   </figcaption>
@@ -315,6 +320,6 @@ export function printHtml(html: string): void {
   else frame.onload = fire;
 }
 
-export function printStoryboard(shotlist: Shotlist, venueName?: string, stamp?: DocumentStamp): void {
-  printHtml(buildStoryboardHtml(shotlist, venueName, stamp));
+export function printStoryboard(shotlist: Shotlist, venueName?: string, stamp?: DocumentStamp, units: Units = 'metric'): void {
+  printHtml(buildStoryboardHtml(shotlist, venueName, stamp, units));
 }

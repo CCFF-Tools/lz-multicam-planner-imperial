@@ -4,6 +4,8 @@ import { TEMPLATES } from '../../data/templates';
 import { FiTrash2, FiSave, FiCopy, FiChevronDown, FiRotateCcw } from 'react-icons/fi';
 import type { VenueTemplate } from '../../types';
 import { useTranslation, format } from '../../i18n';
+import { useUnits } from '../../store/units';
+import { formatDimensions } from '../../utils/units';
 
 type TFn = (key: string, en: string) => string;
 
@@ -17,6 +19,7 @@ const getCategories = (t: TFn): { value: VenueTemplate['category']; label: strin
 
 export default function TemplateSelector() {
   const { t } = useTranslation();
+  const units = useUnits((s) => s.units);
   const CATEGORIES = getCategories(t);
   const {
     loadTemplate,
@@ -185,7 +188,7 @@ export default function TemplateSelector() {
                       >
                         <div className="font-medium">{tpl.name}</div>
                         <div className="text-xs text-bc-dim">
-                          {format(t('header.templates.cameras', '{count} cameras · {w}×{h}m'), { count: tpl.cameras.length, w: tpl.venue.widthM, h: tpl.venue.heightM })}
+                          {tpl.cameras.length} cameras · {formatDimensions(tpl.venue.widthM, tpl.venue.heightM, units)}
                           {isPureBuiltIn(tpl.id) && <span className="ml-1 text-bc-faint">{t('header.templates.builtIn', '(built-in)')}</span>}
                           {isBuiltInShadow(tpl.id) && <span className="ml-1 text-bc-yellow-text">{t('header.templates.modified', '(modified)')}</span>}
                           {isCustomEntry(tpl.id) && !isBuiltInShadow(tpl.id) && <span className="ml-1 text-bc-accent">{t('header.templates.customTag', '(custom)')}</span>}

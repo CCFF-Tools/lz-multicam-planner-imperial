@@ -1,5 +1,5 @@
 import { useUnits } from '../../store/units';
-import { formatLength } from '../../utils/units';
+import { formatDimensions, formatLength, formatLengthWithUnit } from '../../utils/units';
 import React from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Grid, Text, PerspectiveCamera, Html, TransformControls, Billboard } from '@react-three/drei';
@@ -493,6 +493,7 @@ function FPSControls({ mouseLookEnabled, defaultPitch, onManualMove }: { mouseLo
 }
 
 function StageMesh({ stage }: { stage: Stage }) {
+  const units = useUnits((s) => s.units);
   const { x, y, width: w, height: h, label } = stage;
   // Podest statt Flaeche (#73): mit `elevationM` wird aus der Buehne ein
   // Koerper, der auf dem Boden steht — die Oberkante liegt dann genau auf der
@@ -520,7 +521,7 @@ function StageMesh({ stage }: { stage: Stage }) {
       </Text>
       {/* Stage dimensions */}
       <Text font={LABEL_FONT} position={[0, boxH / 2 + 0.08, h / 2 + 0.3]} rotation={[-Math.PI / 2, 0, 0]} fontSize={0.25} color="#60a5fa" anchorX="center" fillOpacity={0.53}>
-        {w}×{h}m{raised > 0 ? ` · ${raised.toFixed(2)}m hoch` : ''}
+        {formatDimensions(w, h, units)}{raised > 0 ? ` · ${formatLengthWithUnit(raised, units)} high` : ''}
       </Text>
     </group>
   );
