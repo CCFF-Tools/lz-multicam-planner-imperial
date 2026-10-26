@@ -149,6 +149,13 @@ describe('was gemeldet wird', () => {
     expect(k[0].obstacleLabel).toBe('Pult');
   });
 
+  it('treats a suspended linear light as a ceiling-height obstacle', () => {
+    const light = objekt({ objectType: 'linear-light', width: 0.1, depth: 1.2, height: 0.1, suspensionDropM: 0.5, label: 'Pendant' });
+    const room = { ...leer, persons: [light], ceilingHeightM: 4 };
+    expect(sightlineConflicts({ ...room, cameras: [kamera({ z: 3.3 })] })).toEqual([]);
+    expect(sightlineConflicts({ ...room, cameras: [kamera({ z: 3.45 })] })).toHaveLength(1);
+  });
+
   it('ein erhöhtes Podest quer in der Linie', () => {
     const k = sightlineConflicts({ ...leer, cameras: [kamera({ z: 0.2 })], stages: [podest({ elevationM: 1 })] });
     expect(k).toHaveLength(1);
@@ -236,6 +243,6 @@ describe('Erreichbarkeit', () => {
   it('rechnet gegen den GESAMTEN Aufbau, nicht nur gegen Wände', () => {
     // Der Befund nennt Pult, Monitor, Traverse und Lautsprecherstapel -- nur
     // Waende zu pruefen liesse genau die Faelle liegen, die er aufzaehlt.
-    expect(sidebarQuelle).toContain('{ cameras: [cam], walls, persons, stages: venue.stages, defaultWallHeightM: venue.defaultWallHeightM }');
+    expect(sidebarQuelle).toContain('{ cameras: [cam], walls, persons, stages: venue.stages, defaultWallHeightM: venue.defaultWallHeightM, ceilingHeightM: venue.ceilingHeightM, ceilingZones: venue.ceilingZones }');
   });
 });

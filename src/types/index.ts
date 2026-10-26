@@ -129,7 +129,7 @@ export interface Lens {
 // ── Object type presets ──
 export type StageObjectType =
   | 'person' | 'person-guitar' | 'sitting-person' | 'drums' | 'keys'
-  | 'mic-stand' | 'chair' | 'table' | 'lectern' | 'schneetiger' | 'custom';
+  | 'mic-stand' | 'chair' | 'table' | 'lectern' | 'linear-light' | 'schneetiger' | 'custom';
 
 // ── Camera mount / support type (physical rig) ──
 // Re-introduced from the older dev tree because each mount imposes a real
@@ -275,8 +275,10 @@ export interface ReferencePerson {
   y: number; // metres from top
   height: number; // metres
   width: number; // metres (footprint width)
-  /** Optional footprint depth/length in metres; currently editable for tables. */
+  /** Optional footprint depth/length in metres; editable for tables and linear lights. */
   depth?: number;
+  /** Wire-rope drop from the local ceiling to the top of a suspended object. */
+  suspensionDropM?: number;
   label: string;
   objectType: StageObjectType;
   /** Optional custom accent colour (hex). Falls back to type default. */
@@ -777,6 +779,24 @@ export interface Venue extends RaumErweiterung {
   defaultWallHeightM?: number;
   /** Show light of the 3D views and rendered camera images; missing in files before v4.9 = defaults. */
   showLight?: ShowLightSettings;
+  /** Surface shown on the room ceiling in rendered camera views. */
+  ceilingMaterial?: CeilingMaterial;
+  /** Rectangular overrides for local ceiling height and surface. */
+  ceilingZones?: CeilingZone[];
+}
+
+export type CeilingMaterial = 'drop-tile' | 'drywall';
+
+export interface CeilingZone {
+  id: string;
+  label?: string;
+  /** Centre of the rectangular ceiling area in plan metres. */
+  x: number;
+  y: number;
+  widthM: number;
+  depthM: number;
+  heightM: number;
+  material: CeilingMaterial;
 }
 
 /** Colour look of the show light. */

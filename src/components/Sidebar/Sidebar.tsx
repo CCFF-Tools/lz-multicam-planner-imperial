@@ -282,7 +282,7 @@ function CameraCard({
   // Kamera, und eine Warnung, die man erst suchen muss, wird in der Probe
   // gefunden statt in der Planung -- genau das, was der Bedarf beklagt.
   const sichtKonflikte = conflictsForCamera(
-    { cameras: [cam], walls, persons, stages: venue.stages, defaultWallHeightM: venue.defaultWallHeightM },
+    { cameras: [cam], walls, persons, stages: venue.stages, defaultWallHeightM: venue.defaultWallHeightM, ceilingHeightM: venue.ceilingHeightM, ceilingZones: venue.ceilingZones },
     cam.id,
   );
 
@@ -2763,6 +2763,7 @@ export default function Sidebar() {
                 p.objectType === 'chair' ? '💺' :
                 p.objectType === 'table' ? '🪑' :
                 p.objectType === 'lectern' ? '🎙️' :
+                p.objectType === 'linear-light' ? '💡' :
                 p.objectType === 'schneetiger' ? '🐅' :
                 p.objectType === 'custom' ? '◇' : '👤';
               return (
@@ -2786,17 +2787,23 @@ export default function Sidebar() {
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
                     <label className="block text-[10px] text-bc-muted">
-                      {format(t('sidebar.objectHeight', 'Height ({unit})'), { unit: lengthUnit(units) })}
+                      {format(p.objectType === 'linear-light' ? t('sidebar.objectFixtureHeight', 'Fixture height ({unit})') : t('sidebar.objectHeight', 'Height ({unit})'), { unit: lengthUnit(units) })}
                       <LengthInput className="w-full border border-bc-border bg-bc-panel px-1 py-0.5 text-bc-text-bright" aria-label={`${p.label} height`} value={p.height} min={0.05} onChange={(height) => updatePerson(p.id, { height })} />
                     </label>
                     <label className="block text-[10px] text-bc-muted">
                       {format(t('sidebar.objectWidth', 'Width ({unit})'), { unit: lengthUnit(units) })}
                       <LengthInput className="w-full border border-bc-border bg-bc-panel px-1 py-0.5 text-bc-text-bright" aria-label={`${p.label} width`} value={p.width} min={0.05} onChange={(width) => updatePerson(p.id, { width })} />
                     </label>
-                    {p.objectType === 'table' && (
+                    {(p.objectType === 'table' || p.objectType === 'linear-light') && (
                       <label className="block text-[10px] text-bc-muted">
                         {format(t('sidebar.objectLength', 'Length ({unit})'), { unit: lengthUnit(units) })}
                         <LengthInput className="w-full border border-bc-border bg-bc-panel px-1 py-0.5 text-bc-text-bright" aria-label={`${p.label} length`} value={p.depth ?? p.width * 2 / 3} min={0.05} onChange={(depth) => updatePerson(p.id, { depth })} />
+                      </label>
+                    )}
+                    {p.objectType === 'linear-light' && (
+                      <label className="block text-[10px] text-bc-muted">
+                        {format(t('sidebar.objectSuspensionDrop', 'Wire-rope drop ({unit})'), { unit: lengthUnit(units) })}
+                        <LengthInput className="w-full border border-bc-border bg-bc-panel px-1 py-0.5 text-bc-text-bright" aria-label={`${p.label} suspension drop`} value={p.suspensionDropM ?? 1} min={0} onChange={(suspensionDropM) => updatePerson(p.id, { suspensionDropM })} />
                       </label>
                     )}
                   </div>
@@ -2831,6 +2838,9 @@ export default function Sidebar() {
               </button>
               <button onClick={() => addStageObject('lectern')} className="flex items-center justify-center gap-1 px-1 py-1 bg-bc-accent/20 text-bc-accent text-[10px] hover:bg-bc-accent/30">
                 🎙️ {t('sidebar.objLectern', 'Lectern')}
+              </button>
+              <button onClick={() => addStageObject('linear-light')} className="flex items-center justify-center gap-1 px-1 py-1 bg-bc-accent/20 text-bc-accent text-[10px] hover:bg-bc-accent/30">
+                💡 {t('sidebar.objLinearLight', 'Linear light')}
               </button>
               <button onClick={() => addStageObject('schneetiger')} className="col-span-3 flex items-center justify-center gap-1 px-1 py-1 bg-sky-500/20 text-sky-300 text-[10px] hover:bg-sky-500/30">
                 🐅 {t('sidebar.objSnowTiger', 'Snow tiger')}

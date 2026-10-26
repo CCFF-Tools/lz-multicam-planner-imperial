@@ -1,4 +1,5 @@
 import LengthInput, { OptionalLengthInput } from '../ui/LengthInput';
+import { useEffect, useState } from 'react';
 import { useUnits } from '../../store/units';
 import { formatDimensions, lengthUnit } from '../../utils/units';
 // Abschnitt „Raum": Decke, Boden, Publikumsflaechen, Videowaende.
@@ -8,10 +9,12 @@ import { formatDimensions, lengthUnit } from '../../utils/units';
 // Flaeche anlegen heisst: sitzend oder stehend waehlen — Lage, Groesse und
 // Drehung macht man im 2D-Plan mit der Maus, die Feinwerte stehen
 // eingeklappt darunter.
-import { FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiEdit3, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { useStore } from '../../store/useStore';
 import { useTranslation, format } from '../../i18n';
 import { RAUM_BOEDEN, RAUM_WAENDE, sitzblockNormal, sitzblockPlaetze, videowandNormal, type RaumBoden, type RaumWand, type VenueSeatingBlock } from '../../avplan/floorplan';
+import type { CeilingMaterial, CeilingZone } from '../../types';
+import { normaliseCeilingZone } from '../../utils/ceiling';
 
 const zahl = (v: string, fallback: number) => {
   const n = parseFloat(v);
@@ -42,6 +45,24 @@ export default function RoomPanel() {
   const removeVideoWall = useStore((s) => s.removeVideoWall);
   const blocks = venue.seatingBlocks ?? [];
   const walls = venue.videoWalls ?? [];
+  const ceilingZones = venue.ceilingZones ?? [];
+  const [drawingCeiling, setDrawingCeiling] = useState(false);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('multicam-ceiling-draw', { detail: { active: drawingCeiling } }));
+    return () => {
+      if (drawingCeiling) window.dispatchEvent(new CustomEvent('multicam-ceiling-draw', { detail: { active: false } }));
+    };
+  }, [drawingCeiling]);
+
+  const updateCeilingZone = (id: string, patch: Partial<CeilingZone>) => {
+    setVenue({ ...venue, ceilingZones: ceilingZones.map((zone) => zone.id === id ? normaliseCeilingZone({ ...zone, ...patch }) : zone) });
+  };
+
+  const ceilingMaterialName: Record<CeilingMaterial, string> = {
+    'drop-tile': t('room.ceiling.dropTile', 'Drop tile'),
+    drywall: t('room.ceiling.drywall', 'Drywall'),
+  };
 
   const bodenName: Record<RaumBoden, string> = {
     concrete: t('room.floor.concrete', 'Concrete'),
@@ -96,6 +117,16 @@ export default function RoomPanel() {
           />
         </label>
         <label>
+          <span className="text-bc-muted">{t('room.ceiling.surface', 'Ceiling surface')}</span>
+          <select
+            className="w-full border border-bc-border bg-bc-panel-raised px-2 py-1 text-bc-text-bright"
+            value={venue.ceilingMaterial ?? 'drywall'}
+            onChange={(e) => setVenue({ ...venue, ceilingMaterial: e.target.value as CeilingMaterial })}
+          >
+            {(Object.keys(ceilingMaterialName) as CeilingMaterial[]).map((material) => <option key={material} value={material}>{ceilingMaterialName[material]}</option>)}
+          </select>
+        </label>
+        <label>
           <span className="text-bc-muted">{t('room.floor', 'Floor')}</span>
           <select
             className="w-full border border-bc-border bg-bc-panel-raised px-2 py-1 text-bc-text-bright"
@@ -105,7 +136,7 @@ export default function RoomPanel() {
             {RAUM_BOEDEN.map((b) => <option key={b} value={b}>{bodenName[b]}</option>)}
           </select>
         </label>
-        <label className="col-span-2">
+        <label>
           <span className="text-bc-muted">{t('room.walls', 'Walls')}</span>
           <select
             className="w-full bg-bc-dark border border-bc-border px-2 py-1 text-bc-text-bright"
@@ -121,6 +152,54 @@ export default function RoomPanel() {
           </select>
         </label>
       </div>
+
+      <div className="pt-1 text-[13px] font-semibold text-bc-text-bright">{t('room.ceiling.areas', 'Ceiling areas')}</div>
+      <p className="text-[10px] leading-relaxed text-bc-dim">{t('room.ceiling.areasHint', 'Draw a rectangle to override the ceiling height and surface in part of the room.')}</p>
+      {ceilingZones.map((raw, index) => {
+        const zone = normaliseCeilingZone(raw);
+        return (
+          <div key={zone.id} className="space-y-1 bg-bc-dark p-2 border border-bc-border">
+            <div className="flex items-center gap-2">
+              <input
+                className="min-w-0 flex-1 bg-transparent text-bc-text-bright text-xs font-semibold outline-none"
+                value={zone.label ?? ''}
+                placeholder={format(t('room.ceiling.areaName', 'Ceiling area {n}'), { n: index + 1 })}
+                onChange={(e) => updateCeilingZone(zone.id, { label: e.target.value })}
+              />
+              <button
+                type="button"
+                onClick={() => setVenue({ ...venue, ceilingZones: ceilingZones.filter((candidate) => candidate.id !== zone.id) })}
+                className="p-1 hover:text-bc-red-text"
+                title={t('room.remove', 'Remove')}
+                aria-label={t('room.remove', 'Remove')}
+              >
+                <FiTrash2 size={12} />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              <Zahl length label={format(t('room.x', 'X ({unit})'), { unit: lengthUnit(units) })} value={zone.x} step={0.1} min={-10000} max={10000} onChange={(x) => updateCeilingZone(zone.id, { x })} />
+              <Zahl length label={format(t('room.y', 'Y ({unit})'), { unit: lengthUnit(units) })} value={zone.y} step={0.1} min={-10000} max={10000} onChange={(y) => updateCeilingZone(zone.id, { y })} />
+              <Zahl length label={format(t('room.ceiling', 'Ceiling ({unit})'), { unit: lengthUnit(units) })} value={zone.heightM} step={0.1} min={0.2} max={200} onChange={(heightM) => updateCeilingZone(zone.id, { heightM })} />
+              <Zahl length label={format(t('room.width', 'Width ({unit})'), { unit: lengthUnit(units) })} value={zone.widthM} step={0.1} min={0.2} max={2000} onChange={(widthM) => updateCeilingZone(zone.id, { widthM })} />
+              <Zahl length label={format(t('room.ceiling.depth', 'Depth ({unit})'), { unit: lengthUnit(units) })} value={zone.depthM} step={0.1} min={0.2} max={2000} onChange={(depthM) => updateCeilingZone(zone.id, { depthM })} />
+              <label>
+                <span className="text-bc-dim">{t('room.ceiling.surface', 'Ceiling surface')}</span>
+                <select className={feld} value={zone.material} onChange={(e) => updateCeilingZone(zone.id, { material: e.target.value as CeilingMaterial })}>
+                  {(Object.keys(ceilingMaterialName) as CeilingMaterial[]).map((material) => <option key={material} value={material}>{ceilingMaterialName[material]}</option>)}
+                </select>
+              </label>
+            </div>
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        aria-pressed={drawingCeiling}
+        onClick={() => setDrawingCeiling((active) => !active)}
+        className={`flex w-full items-center justify-center gap-1 px-2 py-1 text-xs ${drawingCeiling ? 'bg-bc-yellow/20 text-bc-yellow-text' : 'bg-bc-accent/20 text-bc-accent hover:bg-bc-accent/30'}`}
+      >
+        <FiEdit3 size={12} /> {drawingCeiling ? t('room.ceiling.stopDrawing', 'Stop drawing') : t('room.ceiling.drawArea', 'Draw ceiling area')}
+      </button>
 
       <div className="pt-1 text-[13px] font-semibold text-bc-text-bright">{t('room.audience', 'Audience')}</div>
       {blocks.map((roh) => {

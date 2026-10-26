@@ -32,11 +32,13 @@
 //
 // REIN: keine Uhr, kein Store, kein IO.
 // ───────────────────────────────────────────────────────────────────────────
-import type { ReferencePerson, Stage, VenueCamera, Wall } from '../types';
+import type { CeilingZone, ReferencePerson, Stage, VenueCamera, Wall } from '../types';
 import { defaultWallHeight, resolveWallHeights } from './wallHeight';
 import { effectiveCameraPos } from './camera';
 import { formatLengthWithUnit, type Units } from './units';
 import { wallPathSegments } from './wallPath';
+import { groundHeightAt } from './stageBody';
+import { objectBaseElevation } from './ceiling';
 
 /** Ein Punkt im Raum (Meter). */
 export interface Point3 {
@@ -132,6 +134,8 @@ export interface SightlineInput {
   stages: Stage[];
   /** Standard height for walls without their own (#198). */
   defaultWallHeightM?: number;
+  ceilingHeightM?: number;
+  ceilingZones?: CeilingZone[];
 }
 
 /**
@@ -176,7 +180,7 @@ export const sightlineConflicts = (input: SightlineInput): SightlineConflict[] =
     // frei erfunden, und eine Drehung dazu. Der Kreis nimmt genau das, was im
     // Datensatz steht.
     for (const p of input.persons) {
-      const radius = p.width / 2;
+      const radius = Math.max(p.width, p.depth ?? 0) / 2;
       if (radius <= 0) continue;
       const { t, abstand } = naechsterPunkt(from.x, from.y, to.x, to.y, p.x, p.y);
       if (abstand >= radius) continue;
@@ -185,14 +189,20 @@ export const sightlineConflicts = (input: SightlineInput): SightlineConflict[] =
       if (t > 0.98) continue;
       if (t <= 0) continue;
       const linie = hoeheBei(from, to, t);
-      if (linie >= p.height) continue;
+      const baseM = objectBaseElevation(
+        { ceilingHeightM: input.ceilingHeightM, ceilingZones: input.ceilingZones },
+        p,
+        groundHeightAt(input.stages, p.x, p.y),
+      );
+      const topM = baseM + p.height;
+      if (linie < baseM || linie >= topM) continue;
       out.push({
         cameraId: cam.id,
         cameraLabel: cam.label,
         kind: 'object',
         obstacleId: p.id,
         obstacleLabel: p.label,
-        intrusionM: Number((p.height - linie).toFixed(2)),
+        intrusionM: Number((topM - linie).toFixed(2)),
         atDistanceM: Number((laenge * t).toFixed(2)),
       });
     }

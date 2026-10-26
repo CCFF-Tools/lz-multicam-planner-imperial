@@ -28,6 +28,7 @@ import PlanVisibilityBar from './PlanVisibilityBar';
 import { DEFAULT_PLAN_VISIBILITY, type PlanVisibilityKey } from './planVisibility';
 import RaumOverlay, { type RaumAuswahl } from './RaumOverlay';
 import { defaultWallControlPoint, wallPathPoints, wallPoint } from '../../utils/wallPath';
+import { ceilingZoneId, DEFAULT_CEILING_HEIGHT_M, DEFAULT_CEILING_MATERIAL } from '../../utils/ceiling';
 
 // Shared style for context-menu items (issue #38).
 const ctxItemStyle: React.CSSProperties = {
@@ -153,6 +154,10 @@ export default function Venue2D() {
   const drawingWall = wallDrawKind !== null;
   const [wallStart, setWallStart] = useState<{ x: number; y: number } | null>(null);
   const [wallCursor, setWallCursor] = useState<{ x: number; y: number } | null>(null);
+  const [drawingCeiling, setDrawingCeiling] = useState(false);
+  const [ceilingStart, setCeilingStart] = useState<{ x: number; y: number } | null>(null);
+  const [ceilingCursor, setCeilingCursor] = useState<{ x: number; y: number } | null>(null);
+  const drawingPlanShape = drawingWall || drawingCeiling;
   const shiftHeld = useRef(false);
 
   useEffect(() => {
@@ -167,6 +172,17 @@ export default function Venue2D() {
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const active = !!(event as CustomEvent<{ active?: boolean }>).detail?.active;
+      setDrawingCeiling(active);
+      setCeilingStart(null);
+      setCeilingCursor(null);
+    };
+    window.addEventListener('multicam-ceiling-draw', handler);
+    return () => window.removeEventListener('multicam-ceiling-draw', handler);
   }, []);
 
   // Listen for wall-draw-mode toggle from sidebar or toolbar
@@ -352,7 +368,7 @@ export default function Venue2D() {
   // Handle calibration clicks on the stage
   const handleStageClick = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
     // Clicking empty canvas (the Konva Stage itself) clears the stage selection.
-    if (e.target === e.target.getStage() && !drawingWall && !calibActive) {
+    if (e.target === e.target.getStage() && !drawingPlanShape && !calibActive) {
       setSelectedStageId(null);
       setSelectedPersonId(null);
       setSelectedWallId(null);
@@ -360,6 +376,8 @@ export default function Venue2D() {
     }
     const point = getPointerWorldPoint();
     if (!point) return;
+
+    if (drawingCeiling) return;
 
     if (drawingWall) {
       const worldPoint = { x: point.xPx / ppm, y: point.yPx / ppm };
@@ -435,7 +453,7 @@ export default function Venue2D() {
       setCalibCursor(null);
       window.dispatchEvent(new CustomEvent('multicam-calibrate-done'));
     }
-  }, [addWall, backgroundPlan, calibActive, calibAutoResize, calibAxis, calibDistM, calibPoints, calibScaleLocked, drawingWall, getPointerWorldPoint, ppm, setBackgroundPlan, setVenue, snapPoint, snapToEndpoints, venue, wallStart, walls.length]);
+  }, [addWall, backgroundPlan, calibActive, calibAutoResize, calibAxis, calibDistM, calibPoints, calibScaleLocked, drawingCeiling, drawingPlanShape, drawingWall, getPointerWorldPoint, ppm, setBackgroundPlan, setVenue, snapPoint, snapToEndpoints, venue, wallStart, walls.length]);
 
   const bereichPunkt = useCallback(() => {
     const p = getPointerWorldPoint();
@@ -443,12 +461,43 @@ export default function Venue2D() {
   }, [getPointerWorldPoint, ppm]);
 
   const handleStageMouseDown = useCallback(() => {
+    if (drawingCeiling) {
+      const point = bereichPunkt();
+      if (point) {
+        setCeilingStart(point);
+        setCeilingCursor(point);
+      }
+      return;
+    }
     if (!planBereichModus) return;
     const p = bereichPunkt();
     if (p) setBereichStart(p);
-  }, [bereichPunkt, planBereichModus]);
+  }, [bereichPunkt, drawingCeiling, planBereichModus]);
 
   const handleStageMouseUp = useCallback(() => {
+    if (drawingCeiling && ceilingStart) {
+      const point = bereichPunkt();
+      setCeilingStart(null);
+      setCeilingCursor(null);
+      if (!point) return;
+      const widthM = Math.abs(point.x - ceilingStart.x);
+      const depthM = Math.abs(point.y - ceilingStart.y);
+      if (widthM >= 0.2 && depthM >= 0.2) {
+        const zone = {
+          id: ceilingZoneId(),
+          label: `Ceiling ${(venue.ceilingZones?.length ?? 0) + 1}`,
+          x: (point.x + ceilingStart.x) / 2,
+          y: (point.y + ceilingStart.y) / 2,
+          widthM,
+          depthM,
+          heightM: venue.ceilingHeightM ?? DEFAULT_CEILING_HEIGHT_M,
+          material: venue.ceilingMaterial ?? DEFAULT_CEILING_MATERIAL,
+        };
+        setVenue({ ...venue, ceilingZones: [...(venue.ceilingZones ?? []), zone] });
+        setRaumAuswahl({ art: 'ceiling', id: zone.id });
+      }
+      return;
+    }
     if (!planBereichModus || !bereichStart) return;
     const p = bereichPunkt();
     setBereichStart(null);
@@ -463,7 +512,7 @@ export default function Venue2D() {
     const leer = rahmen.maxX - rahmen.minX < 0.5 || rahmen.maxY - rahmen.minY < 0.5;
     setPlanVorschau({ ...(planVorschau ?? { waende: [], buehnen: [], raeume: [] }), bereich: leer ? undefined : rahmen });
     setPlanBereichModus(false);
-  }, [bereichPunkt, bereichStart, planBereichModus, planVorschau, setPlanBereichModus, setPlanVorschau]);
+  }, [bereichPunkt, bereichStart, ceilingStart, drawingCeiling, planBereichModus, planVorschau, setPlanBereichModus, setPlanVorschau, setVenue, venue]);
 
   const handleStageMouseMove = useCallback(() => {
     const point = getPointerWorldPoint();
@@ -471,13 +520,16 @@ export default function Venue2D() {
     if (planBereichModus && bereichStart) {
       setBereichJetzt({ x: point.xPx / ppm, y: point.yPx / ppm });
     }
+    if (drawingCeiling && ceilingStart) {
+      setCeilingCursor({ x: point.xPx / ppm, y: point.yPx / ppm });
+    }
     if (drawingWall && wallStart) {
       setWallCursor(snapToEndpoints(snapPoint(wallStart, { x: point.xPx / ppm, y: point.yPx / ppm })));
     }
     if (calibActive && calibPoints.length === 1) {
       setCalibCursor({ x: point.xPx, y: point.yPx });
     }
-  }, [bereichStart, calibActive, calibPoints.length, drawingWall, getPointerWorldPoint, planBereichModus, ppm, snapPoint, snapToEndpoints, wallStart]);
+  }, [bereichStart, calibActive, calibPoints.length, ceilingStart, drawingCeiling, drawingWall, getPointerWorldPoint, planBereichModus, ppm, snapPoint, snapToEndpoints, wallStart]);
 
   const handleWallEndpointDragMove = useCallback((wall: Wall, end: 'start' | 'end', e: Konva.KonvaEventObject<DragEvent>) => {
     const node = e.target;
@@ -596,7 +648,7 @@ export default function Venue2D() {
       tr.nodes([]);
     }
     tr.getLayer()?.batchDraw();
-  }, [selectedStageId, venue.stages, drawingWall, calibActive, lockStages]);
+  }, [selectedStageId, venue.stages, drawingPlanShape, calibActive, lockStages]);
 
   // Commit a Transformer resize: convert the scaled group back into metric
   // width/height (+ x/y, since top/left anchors move the origin) and reset the
@@ -718,7 +770,7 @@ export default function Venue2D() {
         scaleY={zoom}
         x={stagePos.x}
         y={stagePos.y}
-        draggable={!calibActive && !drawingWall && !planBereichModus}
+        draggable={!calibActive && !drawingPlanShape && !planBereichModus}
         onDragEnd={(e) => {
           // Dieselbe Regel wie bei der Kamera-Marke, nur hier schon immer von
           // Hand geschrieben: ein Drag-Handler rechnet nur mit seinem eigenen
@@ -731,7 +783,7 @@ export default function Venue2D() {
         onMouseDown={handleStageMouseDown}
         onMouseUp={handleStageMouseUp}
         onMouseMove={handleStageMouseMove}
-        style={{ cursor: calibActive || drawingWall || planBereichModus ? 'crosshair' : 'grab' }}
+        style={{ cursor: calibActive || drawingPlanShape || planBereichModus ? 'crosshair' : 'grab' }}
       >
       {/* ── Layer 1: Static background (venue, image, grid, scale bar) ── */}
       <Layer listening={false}>
@@ -853,11 +905,13 @@ export default function Venue2D() {
           ppm={ppm}
           blocks={venue.seatingBlocks ?? []}
           walls={venue.videoWalls ?? []}
-          locked={lockRoom || drawingWall || calibActive}
+          ceilings={venue.ceilingZones ?? []}
+          locked={lockRoom || drawingPlanShape || calibActive}
           auswahl={raumAuswahl}
           onAuswahl={(a) => { setRaumAuswahl(a); if (a) setSelectedStageId(null); }}
           onBlock={updateSeatingBlock}
           onWand={updateVideoWall}
+          onCeiling={(id, patch) => setVenue({ ...venue, ceilingZones: (venue.ceilingZones ?? []).map((zone) => zone.id === id ? { ...zone, ...patch } : zone) })}
         />}
 
         {/* Stages — click to select (shows resize handles), drag to move,
@@ -868,10 +922,10 @@ export default function Venue2D() {
             ref={(node) => { if (node) stageNodeRefs.current[s.id] = node; else delete stageNodeRefs.current[s.id]; }}
             x={s.x * ppm}
             y={s.y * ppm}
-            draggable={!drawingWall && !s.locked && !lockStages}
+            draggable={!drawingPlanShape && !s.locked && !lockStages}
             onDragEnd={(e) => handleStageDragEnd(s.id, e)}
-            onClick={(e) => { if (!drawingWall && !calibActive) { e.cancelBubble = true; setRaumAuswahl(null); setSelectedPersonId(null); setSelectedWallId(null); setSelectedStageId(s.locked || lockStages ? null : s.id); } }}
-            onTap={(e) => { if (!drawingWall && !calibActive) { e.cancelBubble = true; setRaumAuswahl(null); setSelectedPersonId(null); setSelectedWallId(null); setSelectedStageId(s.locked || lockStages ? null : s.id); } }}
+            onClick={(e) => { if (!drawingPlanShape && !calibActive) { e.cancelBubble = true; setRaumAuswahl(null); setSelectedPersonId(null); setSelectedWallId(null); setSelectedStageId(s.locked || lockStages ? null : s.id); } }}
+            onTap={(e) => { if (!drawingPlanShape && !calibActive) { e.cancelBubble = true; setRaumAuswahl(null); setSelectedPersonId(null); setSelectedWallId(null); setSelectedStageId(s.locked || lockStages ? null : s.id); } }}
             onContextMenu={(e) => openContextMenu('stage', s.id, !!s.locked, e)}
             onTransformEnd={(e) => handleStageTransformEnd(s.id, e)}
           >
@@ -922,7 +976,7 @@ export default function Venue2D() {
             <Line
               points={points}
               stroke="#9ca3af" strokeWidth={Math.max(3, wandDicke(w) * ppm)} hitStrokeWidth={Math.max(10, wandDicke(w) * ppm)}
-              draggable={!drawingWall && !lockWalls}
+              draggable={!drawingPlanShape && !lockWalls}
               onClick={(e) => { e.cancelBubble = true; setSelectedWallId(w.id); setSelectedPersonId(null); setSelectedStageId(null); }}
               onTap={(e) => { e.cancelBubble = true; setSelectedWallId(w.id); setSelectedPersonId(null); setSelectedStageId(null); }}
               onContextMenu={(e) => { e.evt.preventDefault(); if (!lockWalls) openContextMenu('wall', w.id, false, e); }}
@@ -934,11 +988,11 @@ export default function Venue2D() {
               }}
             />
             {selected && !lockWalls && <>
-              <Circle x={w.x1 * ppm} y={w.y1 * ppm} radius={5} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingWall} onDragMove={(e) => handleWallEndpointDragMove(w, 'start', e)} />
-              <Circle x={w.x2 * ppm} y={w.y2 * ppm} radius={5} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingWall} onDragMove={(e) => handleWallEndpointDragMove(w, 'end', e)} />
+              <Circle x={w.x1 * ppm} y={w.y1 * ppm} radius={5} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingPlanShape} onDragMove={(e) => handleWallEndpointDragMove(w, 'start', e)} />
+              <Circle x={w.x2 * ppm} y={w.y2 * ppm} radius={5} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingPlanShape} onDragMove={(e) => handleWallEndpointDragMove(w, 'end', e)} />
               {w.cx !== undefined && w.cy !== undefined && <>
                 <Line points={[w.x1 * ppm, w.y1 * ppm, w.cx * ppm, w.cy * ppm, w.x2 * ppm, w.y2 * ppm]} stroke="#f59e0b" strokeWidth={1} dash={[4, 4]} opacity={0.55} listening={false} />
-                <Circle x={w.cx * ppm} y={w.cy * ppm} radius={6} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingWall} onDragMove={(e) => {
+                <Circle x={w.cx * ppm} y={w.cy * ppm} radius={6} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingPlanShape} onDragMove={(e) => {
                   const cx = e.target.x() / ppm;
                   const cy = e.target.y() / ppm;
                   updateWall(w.id, { cx, cy });
@@ -974,6 +1028,19 @@ export default function Venue2D() {
             <Circle x={wallStart.x * ppm} y={wallStart.y * ppm} radius={4} fill="#f59e0b" listening={false} />
           </>
         )}
+        {visibility.room && drawingCeiling && ceilingStart && ceilingCursor && (
+          <Rect
+            x={Math.min(ceilingStart.x, ceilingCursor.x) * ppm}
+            y={Math.min(ceilingStart.y, ceilingCursor.y) * ppm}
+            width={Math.abs(ceilingCursor.x - ceilingStart.x) * ppm}
+            height={Math.abs(ceilingCursor.y - ceilingStart.y) * ppm}
+            fill="#22d3ee18"
+            stroke="#22d3ee"
+            strokeWidth={2}
+            dash={[6, 4]}
+            listening={false}
+          />
+        )}
 
         {/* Persons */}
         {visibility.objects && persons.map((p) => {
@@ -987,14 +1054,15 @@ export default function Venue2D() {
             type === 'chair' ? '#a16207' :
             type === 'table' ? '#a16207' :
             type === 'lectern' ? '#7c3aed' :
+            type === 'linear-light' ? '#fbbf24' :
             type === 'schneetiger' ? '#e0f2fe' :
             '#f59e0b'
           );
           const footW = Math.max(6, p.width * ppm);
-          const footD = Math.max(6, (p.objectType === 'table' ? (p.depth ?? p.width * 2 / 3) : p.width / 2) * ppm);
+          const footD = Math.max(6, (p.objectType === 'table' || p.objectType === 'linear-light' ? (p.depth ?? p.width * 2 / 3) : p.width / 2) * ppm);
           const selected = selectedPersonId === p.id;
           return (
-            <Group key={p.id} x={p.x * ppm} y={p.y * ppm} draggable={!p.locked && !lockPersons} onDragEnd={(e) => handlePersonDragEnd(p.id, e)} onClick={(e) => { e.cancelBubble = true; setSelectedPersonId(p.id); setSelectedWallId(null); setSelectedStageId(null); }} onTap={(e) => { e.cancelBubble = true; setSelectedPersonId(p.id); setSelectedWallId(null); setSelectedStageId(null); }} onContextMenu={(e) => { e.evt.preventDefault(); if (!lockPersons) openContextMenu('person', p.id, !!p.locked, e); }}>
+            <Group key={p.id} x={p.x * ppm} y={p.y * ppm} draggable={!drawingPlanShape && !p.locked && !lockPersons} onDragEnd={(e) => handlePersonDragEnd(p.id, e)} onClick={(e) => { if (drawingPlanShape) return; e.cancelBubble = true; setSelectedPersonId(p.id); setSelectedWallId(null); setSelectedStageId(null); }} onTap={(e) => { if (drawingPlanShape) return; e.cancelBubble = true; setSelectedPersonId(p.id); setSelectedWallId(null); setSelectedStageId(null); }} onContextMenu={(e) => { e.evt.preventDefault(); if (!lockPersons) openContextMenu('person', p.id, !!p.locked, e); }}>
               <Group rotation={p.rotationDeg ?? 0}>
               {selected && !p.locked && !lockPersons && <>
                 <Line points={[0, -footD / 2, 0, -footD / 2 - 16]} stroke={col} strokeWidth={1} dash={[3, 3]} listening={false} />
@@ -1011,15 +1079,15 @@ export default function Venue2D() {
                 }
                 node.position({ x: 0, y: -footD / 2 - 16 });
               }} /></>}
-              {type === 'table' || type === 'drums' || type === 'keys' ? (
-                <Rect x={-footW / 2} y={-footD / 2} width={footW} height={footD} fill={col} opacity={0.55} stroke={col} strokeWidth={1} cornerRadius={2} />
+              {type === 'table' || type === 'drums' || type === 'keys' || type === 'linear-light' ? (
+                <Rect x={-footW / 2} y={-footD / 2} width={footW} height={footD} fill={col} opacity={type === 'linear-light' ? 0.85 : 0.55} stroke={type === 'linear-light' ? '#fff7cc' : col} strokeWidth={1} cornerRadius={2} />
               ) : type === 'schneetiger' ? (
                 <Rect x={-footW / 2} y={-footW / 4} width={footW} height={footW / 2} fill={col} opacity={0.85} stroke="#1f2937" strokeWidth={1} cornerRadius={footW / 4} />
               ) : (
                 <Circle radius={Math.max(5, footW / 3)} fill={col} stroke="#fff" strokeWidth={1} opacity={0.85} />
               )}
               </Group>
-              <Text x={-40} y={Math.max(8, footD / 2 + 4)} text={`${p.locked ? '🔒 ' : ''}${p.label} (${length(p.height)})`} fontSize={9} fill={col} align="center" width={80} listening={false} />
+              <Text x={-40} y={Math.max(8, footD / 2 + 4)} text={`${p.locked ? '🔒 ' : ''}${p.label} (${length(p.height)}${type === 'linear-light' ? ` · drop ${length(p.suspensionDropM ?? 1)}` : ''})`} fontSize={9} fill={col} align="center" width={80} listening={false} />
             </Group>
           );
         })}
@@ -1037,7 +1105,7 @@ export default function Venue2D() {
               ppm={ppm}
               isSelected={cam.id === selectedCameraId}
               onRotate={
-                cam.id === selectedCameraId && !cam.locked && !lockCameras && !drawingWall
+                cam.id === selectedCameraId && !cam.locked && !lockCameras && !drawingPlanShape
                   ? handleRigRotate
                   : undefined
               }
@@ -1052,7 +1120,7 @@ export default function Venue2D() {
           const isSelected = cam.id === selectedCameraId;
           const pos = effectiveCameraPos(cam);
           return (
-            <Group key={`cam-${cam.id}`} x={pos.x * ppm} y={pos.y * ppm} draggable={!drawingWall && !cam.locked && !lockCameras} onDragEnd={(e) => handleCamDragEnd(cam, e)} onClick={() => selectCamera(cam.id)} onTap={() => selectCamera(cam.id)} onContextMenu={(e) => { e.evt.preventDefault(); if (!lockCameras) openContextMenu('camera', cam.id, !!cam.locked, e); }}>
+            <Group key={`cam-${cam.id}`} x={pos.x * ppm} y={pos.y * ppm} draggable={!drawingPlanShape && !cam.locked && !lockCameras} onDragEnd={(e) => handleCamDragEnd(cam, e)} onClick={() => { if (!drawingPlanShape) selectCamera(cam.id); }} onTap={() => { if (!drawingPlanShape) selectCamera(cam.id); }} onContextMenu={(e) => { e.evt.preventDefault(); if (!lockCameras) openContextMenu('camera', cam.id, !!cam.locked, e); }}>
               <Circle radius={isSelected ? 10 : 8} fill={cam.color} stroke={isSelected ? '#fff' : cam.color} strokeWidth={isSelected ? 3 : 1} shadowColor={cam.color} shadowBlur={isSelected ? 12 : 0} />
               <Line points={[0, 0, 14 * Math.cos((cam.pan * Math.PI) / 180), 14 * Math.sin((cam.pan * Math.PI) / 180)]} stroke={cam.color} strokeWidth={2} />
               {/* Pan-rotation handle — drag to aim the camera (issue #36).
