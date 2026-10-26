@@ -1,7 +1,7 @@
 import { personYaw, objectYaw } from '../utils/objectOrientation';
 import { buildProjectFile } from '../store/useStore';
 import { describe, it, expect } from 'vitest';
-import { formatLength, parseLength } from '../utils/units';
+import { formatDimensions, formatLength, formatLengthWithUnit, formatSpeed, imperialPartsToMeters, parseLength, scaleDisplayFactor, scaleUnit, splitImperialLength } from '../utils/units';
 import { toVenueExchange, fromVenueExchange } from '../utils/venueExchange';
 import { videowandNormal } from '../avplan/floorplan';
 import type { ReferencePerson, Venue } from '../types';
@@ -17,6 +17,20 @@ describe('architectural measurements', () => {
   it('rounds with carry and round-trips within half a tenth inch', () => {
     expect(formatLength(11.99 * 0.0254, 'imperial')).toBe(`1' 0"`);
     for (const m of [-12.34, 0, 1.685, 22.25]) expect(Math.abs(parseLength(formatLength(m, 'imperial'), 'imperial')! - m)).toBeLessThanOrEqual(0.00127);
+  });
+  it('normalises an unrestricted inches field into feet and inches', () => {
+    const meters = imperialPartsToMeters(0, 26);
+    expect(splitImperialLength(meters)).toEqual({ feet: 2, inches: 2 });
+    expect(splitImperialLength(imperialPartsToMeters(3, 14.6))).toEqual({ feet: 4, inches: 2.6 });
+  });
+  it('formats dimensions, speeds, and floor-plan scale in the selected system', () => {
+    expect(formatLengthWithUnit(2, 'metric')).toBe('2 m');
+    expect(formatLengthWithUnit(0.3048, 'imperial')).toBe(`1' 0"`);
+    expect(formatDimensions(0.3048, 0.6096, 'imperial')).toBe(`1' 0" × 2' 0"`);
+    expect(formatSpeed(0.3048, 'imperial')).toBe('1 ft/s');
+    expect(scaleUnit('metric')).toBe('mm/px');
+    expect(scaleUnit('imperial')).toBe('in/px');
+    expect(0.0254 * scaleDisplayFactor('imperial')).toBeCloseTo(1, 12);
   });
 });
 describe('venue compatibility', () => {

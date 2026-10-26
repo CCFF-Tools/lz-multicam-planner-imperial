@@ -65,6 +65,7 @@ import {
 } from './paintRegistry';
 import { esc, printHtml } from './storyboard';
 import { stampLine, type DocumentStamp } from './documentStamp';
+import type { Units } from './units';
 
 /**
  * Woher die Bildzustaende auf diesem Blatt stammen.
@@ -170,7 +171,7 @@ const ausRegister = (f: RegistryFinding): ShiftFinding => ({
  * unweigerlich auseinander — und dann meldete die Leiste etwas anderes als
  * das Blatt, das jemand mit in die naechste Schicht nimmt.
  */
-export const buildShiftReport = (cameras: readonly VenueCamera[]): ShiftReport => {
+export const buildShiftReport = (cameras: readonly VenueCamera[], units: Units = 'metric'): ShiftReport => {
   const rows: ShiftRow[] = cameras.map((cam) => {
     const p = cam.paint;
     return {
@@ -187,7 +188,7 @@ export const buildShiftReport = (cameras: readonly VenueCamera[]): ShiftReport =
       faults: (cam.faults ?? []).map((f) => f.trim()).filter(Boolean),
       findings: [
         ...checkPaint(cam, cameras).map(ausPaint),
-        ...cardFindings(cam, cameras).map(ausKarte),
+        ...cardFindings(cam, cameras, units).map(ausKarte),
         // Bedarf 48 — was diese Position ueber ihren Fernsteuerweg NICHT
         // kann. Gehoert auf dieses Blatt und nicht nur in die Leiste: die
         // naechste Schicht greift sonst am Pult nach einem Regler, den es

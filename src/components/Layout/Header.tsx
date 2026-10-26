@@ -23,6 +23,7 @@ import { shiftReportFingerprint } from '../../utils/documentContent';
 import { buildStamp } from '../../utils/documentStamp';
 import { openFirstSteps } from './firstStepsEvent';
 import { canOpenWithTarget, currentElectronPath, openedFromInput, openProjectWithTarget, reportDocumentState, saveProject, saveProjectAs, useProjectFileState } from '../../store/projectSave';
+import { useUnits } from '../../store/units';
 
 
 // Edit-mode slider options (issue #43). Each mode locks everything except its
@@ -63,6 +64,7 @@ export default function Header({
   onOpenInventory,
 }: HeaderProps) {
   const { t } = useTranslation();
+  const units = useUnits((s) => s.units);
   // Die Reiter tragen ihren i18n-Schluessel in `tabs.ts`; hier wird er
   // eingeloest. Wer keinen hat, steht mit seinem Label fuer sich.
   const beschriftung = (tab: TabDef) => (tab.key ? t(tab.key, tab.label) : tab.label);
@@ -152,14 +154,14 @@ export default function Header({
   // etwas anderes, als gedruckt wird — die Regel von ADR-004.
   const handlePrintShift = useCallback(() => {
     const s = useStore.getState();
-    const bericht = buildShiftReport(s.cameras);
+    const bericht = buildShiftReport(s.cameras, units);
     const stamp = buildStamp({
       project: s.venue.name,
       current: shiftReportFingerprint(bericht),
       now: new Date(),
     });
     printShiftReport(bericht, s.venue.name, stamp);
-  }, []);
+  }, [units]);
 
   const handleExport = useCallback((mode: ExportMode = 'current') => {
     window.dispatchEvent(new CustomEvent('multicam-export', { detail: { mode } }));

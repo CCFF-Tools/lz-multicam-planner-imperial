@@ -188,6 +188,7 @@ describe('der Klartext', () => {
     expect(text).toContain('5 m');
     expect(text).toContain('1 m');
     expect(text).toContain('CAM 1');
+    expect(conflictText(c, 'imperial')).toContain("16' 4.9\"");
   });
 });
 
@@ -217,7 +218,7 @@ describe('Erreichbarkeit', () => {
   it('steht an der Kamera, aus der der Konflikt entsteht', () => {
     expect(sidebarQuelle).toContain("from '../../utils/sightline'");
     expect(sidebarQuelle).toMatch(/conflictsForCamera\(/);
-    expect(sidebarQuelle).toContain('conflictText(k)');
+    expect(sidebarQuelle).toContain('conflictText(k, units)');
   });
 
   it('steht OFFEN da und nicht in einer aufklappbaren Gruppe', () => {

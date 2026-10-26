@@ -178,6 +178,7 @@ describe('indexOfShot', () => {
 describe('Storyboard-Aufbereitung', () => {
   it('beschriftet die Optik einer Kachel', () => {
     expect(shotOpticsLabel(shot())).toBe('35mm · f/2.8 · 4.2m');
+    expect(shotOpticsLabel(shot(), 'imperial')).toBe('35mm · f/2.8 · 13\' 9.4"');
   });
 
   it('zeigt die Fahrtdauer, bei OFF ohne Sekunden', () => {

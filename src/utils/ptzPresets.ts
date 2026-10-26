@@ -37,6 +37,7 @@
 // REIN: keine Uhr, kein Store, kein IO.
 // ───────────────────────────────────────────────────────────────────────────
 import type { Lens, PtzPreset, VenueCamera } from '../types';
+import { formatLengthWithUnit, type Units } from './units';
 
 /**
  * Ab wann gilt eine Kamera als versetzt (Meter).
@@ -170,13 +171,13 @@ export interface PresetRow {
  * Speicherdatum die Frage „ist das noch aktuell?" ueberhaupt erst
  * beantwortbar macht). Sortiert nach Nummer — so wird sie am Pult gelesen.
  */
-export const presetRows = (cam: VenueCamera): PresetRow[] =>
+export const presetRows = (cam: VenueCamera, units: Units = 'metric'): PresetRow[] =>
   [...(cam.presets ?? [])]
     .sort((a, b) => a.number - b.number)
     .map((p) => ({
       nummer: String(p.number),
       shot: p.name.trim() || '(ohne Namen)',
       segment: p.segment ?? '',
-      optik: `${p.focalLength} mm · ${p.focusDistance} m · Pan ${p.pan}° · Tilt ${p.tilt}°`,
+      optik: `${p.focalLength} mm · ${formatLengthWithUnit(p.focusDistance, units)} · Pan ${p.pan}° · Tilt ${p.tilt}°`,
       stand: p.savedAt.slice(0, 10),
     }));

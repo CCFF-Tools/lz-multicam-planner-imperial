@@ -1,5 +1,7 @@
 import type { Camera, Lens, SensorSize, FovResult, DofResult } from '../../types';
 import { useTranslation } from '../../i18n';
+import { useUnits } from '../../store/units';
+import { formatLengthWithUnit } from '../../utils/units';
 import {
   personHeightInFrame, sensorDiagonalMm,
   PERSON_HEIGHT_M, OUTPUT_HEIGHT_PX, COC_DIVISOR,
@@ -45,6 +47,8 @@ export function CalculationBreakdown({
   focusDistance,
 }: CalculationBreakdownProps) {
   const { t } = useTranslation();
+  const units = useUnits((state) => state.units);
+  const length = (meters: number) => Number.isFinite(meters) ? formatLengthWithUnit(meters, units) : '∞';
   const W = sensor.widthMm;
   const H = sensor.heightMm;
   const f = focalLength;
@@ -93,11 +97,11 @@ export function CalculationBreakdown({
       />
       <Row
         label="Img W"
-        expr={<>2·d·tan(FOV_h/2) = 2·{fmt(s)}·tan({fmt(fov.horizontalDeg / 2)}°) = <span className="text-bc-green-text">{fmt(fov.imageWidthAtDistance)} m</span></>}
+        expr={<>2·d·tan(FOV_h/2) = 2·{fmt(s)}·tan({fmt(fov.horizontalDeg / 2)}°) = <span className="text-bc-green-text">{length(fov.imageWidthAtDistance)}</span></>}
       />
       <Row
         label="Img H"
-        expr={<>2·d·tan(FOV_v/2) = 2·{fmt(s)}·tan({fmt(fov.verticalDeg / 2)}°) = <span className="text-bc-green-text">{fmt(fov.imageHeightAtDistance)} m</span></>}
+        expr={<>2·d·tan(FOV_v/2) = 2·{fmt(s)}·tan({fmt(fov.verticalDeg / 2)}°) = <span className="text-bc-green-text">{length(fov.imageHeightAtDistance)}</span></>}
       />
       <Row
         label="35mm eq"
@@ -113,22 +117,22 @@ export function CalculationBreakdown({
       />
       <Row
         label="Hyperf."
-        expr={<>f_eff² / (N·c)/1000 + f_eff/1000 = {fmt(fe)}² / ({fmt(N)}·{fmt(c, 4)})/1000 + {fmt(fe)}/1000 = <span className="text-bc-yellow-text">{fmt(dof.hyperfocal)} m</span></>}
+        expr={<>f_eff² / (N·c)/1000 + f_eff/1000 = {fmt(fe)}² / ({fmt(N)}·{fmt(c, 4)})/1000 + {fmt(fe)}/1000 = <span className="text-bc-yellow-text">{length(dof.hyperfocal)}</span></>}
         color="text-bc-text"
       />
       <Row
         label="DoF near"
-        expr={<>(H·s) / (H + s − f_eff/1000) = ({fmt(dof.hyperfocal)}·{fmt(s)}) / ({fmt(dof.hyperfocal)} + {fmt(s)} − {fmt(fe / 1000, 3)}) = <span className="text-bc-yellow-text">{fmt(dof.nearLimit)} m</span></>}
+        expr={<>(H·s) / (H + s − f_eff/1000) = ({fmt(dof.hyperfocal)}·{fmt(s)}) / ({fmt(dof.hyperfocal)} + {fmt(s)} − {fmt(fe / 1000, 3)}) = <span className="text-bc-yellow-text">{length(dof.nearLimit)}</span></>}
         color="text-bc-text"
       />
       <Row
         label="DoF far"
-        expr={<>(H·s) / (H − s + f_eff/1000) = ({fmt(dof.hyperfocal)}·{fmt(s)}) / ({fmt(dof.hyperfocal)} − {fmt(s)} + {fmt(fe / 1000, 3)}) = <span className="text-bc-yellow-text">{fmt(dof.farLimit)} m</span></>}
+        expr={<>(H·s) / (H − s + f_eff/1000) = ({fmt(dof.hyperfocal)}·{fmt(s)}) / ({fmt(dof.hyperfocal)} − {fmt(s)} + {fmt(fe / 1000, 3)}) = <span className="text-bc-yellow-text">{length(dof.farLimit)}</span></>}
         color="text-bc-text"
       />
       <Row
         label="DoF total"
-        expr={<>far − near = {fmt(dof.farLimit)} − {fmt(dof.nearLimit)} = <span className="text-bc-yellow-text">{fmt(dof.totalDof)} m</span></>}
+        expr={<>far − near = {fmt(dof.farLimit)} − {fmt(dof.nearLimit)} = <span className="text-bc-yellow-text">{length(dof.totalDof)}</span></>}
         color="text-bc-text"
       />
 

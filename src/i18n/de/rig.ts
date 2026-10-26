@@ -42,7 +42,7 @@ export const rig: Record<string, string> = {
   'rig.followsCamera': 'folgt Kamera',
   'rig.keysArmed': 'Tasten aktiv',
   'rig.keysOff': 'Tasten aus',
-  'rig.limits': 'max {travel} m/s · {rot}°/s · {lift} m/s Hub',
+  'rig.limits': 'max. {travel} · {rot}°/s · {lift} Hub',
   'rig.loop': 'Aufgezeichnete Fahrt in Schleife abspielen',
   'rig.orientation': 'Ausrichtung',
   'rig.panTilt': 'Pan / Tilt (← → ↑ ↓)',

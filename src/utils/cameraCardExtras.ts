@@ -44,6 +44,7 @@ import type { StampCell } from './documentStamp';
 import { PAINT_UNSTATED, paintLines } from './paintState';
 import { shadingLines } from './shadingCapability';
 import { registryLines } from './paintRegistry';
+import { formatLengthWithUnit, type Units } from './units';
 
 export const ACCESS_LABEL: Readonly<Record<RiggingAccess, string>> = {
   ladder: 'Leiter',
@@ -95,11 +96,11 @@ export interface CardFinding {
 }
 
 /** Die Rigging-Zeilen der Karte. Jede Zeile steht IMMER da — auch leer. */
-export const riggingLines = (cam: VenueCamera): string[] => {
+export const riggingLines = (cam: VenueCamera, units: Units = 'metric'): string[] => {
   const r = cam.rigging;
   return [
     `Podest:      ${text(r?.riser)}`,
-    `Höhe:        ${num(r?.riserHeightM, 'm')}`,
+    `Höhe:        ${r?.riserHeightM === undefined ? UNSTATED : formatLengthWithUnit(r.riserHeightM, units)}`,
     `Traglast:    ${num(r?.loadLimitKg, 'kg')}`,
     `Zugang:      ${ACCESS_LABEL[r?.access ?? 'unstated']}`,
     `Strom:       ${text(r?.powerDrop)}`,
@@ -129,8 +130,8 @@ export const kitLines = (cam: VenueCamera): string[] =>
  * wenn Kamera und Optik gleich blieben — und genau dieser Fall ist der, bei
  * dem jemand mit dem alten Zettel auf den falschen Kanal schaltet.
  */
-export const cardExtraRows = (cam: VenueCamera): StampCell[][] => [
-  ['rig', ...riggingLines(cam)],
+export const cardExtraRows = (cam: VenueCamera, units: Units = 'metric'): StampCell[][] => [
+  ['rig', ...riggingLines(cam, units)],
   ['comms', ...commsLines(cam)],
   ...kitLines(cam).map((k) => ['kit', k] as StampCell[]),
   // Bedarf 63 — der Bildzustand steht auf dem Blatt, also geht er ein. Der
@@ -158,7 +159,7 @@ export const cardExtraRows = (cam: VenueCamera): StampCell[][] => [
  * ist: zwei Positionen, die dasselbe Beltpack fordern, sind einzeln beide
  * vollstaendig ausgefuellt.
  */
-export function cardFindings(cam: VenueCamera, alle: readonly VenueCamera[]): CardFinding[] {
+export function cardFindings(cam: VenueCamera, alle: readonly VenueCamera[], units: Units = 'metric'): CardFinding[] {
   const out: CardFinding[] = [];
   const r = cam.rigging;
   const c = cam.comms;
@@ -198,7 +199,7 @@ export function cardFindings(cam: VenueCamera, alle: readonly VenueCamera[]): Ca
     out.push({
       kind: 'camera-below-riser',
       cameraId: cam.id,
-      text: `„${cam.label}" steht auf ${cam.z} m, das Podest ist aber ${r?.riserHeightM} m hoch. Eine der beiden Zahlen stimmt nicht.`,
+      text: `„${cam.label}" steht auf ${formatLengthWithUnit(cam.z, units)}, das Podest ist aber ${formatLengthWithUnit(r?.riserHeightM ?? 0, units)} hoch. Eine der beiden Zahlen stimmt nicht.`,
     });
   }
 

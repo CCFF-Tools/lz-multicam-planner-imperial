@@ -15,6 +15,7 @@
 import type { Shot, Shotlist } from '../types';
 import { documentFingerprint, type StampCell } from './documentStamp';
 import { shotOpticsLabel, shotTransitionLabel } from './storyboard';
+import type { Units } from './units';
 
 /** Eine Kamerazeile, wie sie in der Uebersicht der Karte erscheint. */
 export interface CameraSummaryRow {
@@ -170,13 +171,13 @@ export const shiftReportFingerprint = (report: {
  * Kacheln Megabytes und beantwortet dieselbe Frage nicht besser: die
  * Shot-Daten daneben aendern sich mit.
  */
-export const storyboardFingerprint = (shotlist: Shotlist): string =>
+export const storyboardFingerprint = (shotlist: Shotlist, units: Units = 'metric'): string =>
   documentFingerprint(
     ['storyboard', shotlist.name ?? ''],
     shotlist.shots.map((shot: Shot, i: number) => [
       i + 1,
       shot.name ?? '',
-      shotOpticsLabel(shot),
+      shotOpticsLabel(shot, units),
       shotTransitionLabel(shot),
       shot.note ?? '',
       shot.thumbnail ? 'grab' : '',

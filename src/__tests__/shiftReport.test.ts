@@ -119,7 +119,7 @@ describe('Bedarf 50 — die Schicht-Übergabe', () => {
     expect(arten).toContain('Keine Rigging-Angaben — der Operator erfährt es vor Ort');
     // Und die Befunde werden nicht neu gerechnet, sondern gelesen.
     expect(quelle).toMatch(/checkPaint\(cam, cameras\)/);
-    expect(quelle).toMatch(/cardFindings\(cam, cameras\)/);
+    expect(quelle).toMatch(/cardFindings\(cam, cameras, units\)/);
   });
 
   it('Positionen mit Befund werden GERECHNET', () => {

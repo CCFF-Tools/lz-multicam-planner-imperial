@@ -204,6 +204,7 @@ describe('die Tabelle auf der Karte', () => {
     expect(r.nummer).toBe('2');
     expect(r.shot).toBe('Pult');
     expect(r.segment).toBe('Predigt');
+    expect(presetRows(cam, 'imperial')[0].optik).toMatch(/' .*"/);
   });
 
   it('nennt ein namenloses Preset als solches, statt die Zeile leer zu lassen', () => {

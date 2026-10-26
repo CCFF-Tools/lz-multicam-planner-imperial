@@ -6,6 +6,8 @@ import { Group, Line, Rect, Text, Transformer } from 'react-konva';
 import type Konva from 'konva';
 import { sitzblockNormal, sitzblockPlaetze, videowandNormal, type VenueSeatingBlock, type VenueVideoWall } from '../../avplan/floorplan';
 import { useTranslation, format } from '../../i18n';
+import { useUnits } from '../../store/units';
+import { formatDimensions } from '../../utils/units';
 
 // Bedeutungsfarben (siehe PALETTE in Venue2D): bleiben in beiden Themen gleich.
 const SITZEN = '#7c8db0';
@@ -27,6 +29,7 @@ export default function RaumOverlay({
   onWand: (id: string, patch: Partial<VenueVideoWall>) => void;
 }) {
   const { t } = useTranslation();
+  const units = useUnits((s) => s.units);
   const knoten = useRef<Record<string, Konva.Group>>({});
   const trRef = useRef<Konva.Transformer>(null);
 
@@ -136,7 +139,7 @@ export default function RaumOverlay({
             <Rect x={-w / 2} y={-3} width={w} height={6} fill={WAND} stroke={gewaehlt ? WAND : undefined} strokeWidth={gewaehlt ? 2 : 0} />
             {/* Pfeil: hierhin zeigt das Bild */}
             <Line points={[0, 3, 0, 14, -4, 10, 0, 14, 4, 10]} stroke={WAND} strokeWidth={1.5} listening={false} />
-            <Text x={-w / 2} y={-18} width={w} align="center" text={`${v.label || t('room.videoWall', 'Video wall')} · ${v.widthM}×${v.heightM} m`} fontSize={10} fill={WAND} listening={false} />
+            <Text x={-w / 2} y={-18} width={w} align="center" text={`${v.label || t('room.videoWall', 'Video wall')} · ${formatDimensions(v.widthM, v.heightM, units)}`} fontSize={10} fill={WAND} listening={false} />
           </Group>
         );
       })}

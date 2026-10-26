@@ -1,5 +1,5 @@
-import { formatLength, parseLength } from '../../utils/units';
-import LengthInput from '../ui/LengthInput';
+import { formatDimensions, formatLength, formatLengthWithUnit, lengthUnit, scaleDisplayFactor, scaleUnit, type Units } from '../../utils/units';
+import LengthInput, { OptionalLengthInput } from '../ui/LengthInput';
 import { useUnits } from '../../store/units';
 import { useStore, OBJECT_PRESETS } from '../../store/useStore';
 import { CAMERAS, getCameraById, getAdapterInfo, getEffectiveSensor, getCoverageStatus, getSpeedBooster, speedBoosterExists } from '../../data/cameras';
@@ -190,7 +190,7 @@ function sortFavoritesFirst<T extends { id: string; manufacturer?: string; model
  * Text je Fall, im Quelltext lesbar" gilt hier genauso — eine aus dem
  * `kind` gebaute Zeichenkette waere beim Suchen unauffindbar.
  */
-const presetFindingText = (f: PresetFinding): string => {
+const presetFindingText = (f: PresetFinding, units: Units): string => {
   switch (f.kind) {
     case 'duplicate-number':
       return `Preset ${f.number}: ${f.values?.[0] ?? ''}× vergeben — das Gerät hält nur eines`;
@@ -199,7 +199,7 @@ const presetFindingText = (f: PresetFinding): string => {
     case 'focal-out-of-lens-range':
       return `Preset ${f.number}: ${f.values?.[0] ?? ''} mm liegt außerhalb des Objektivs (${f.values?.[1] ?? ''}–${f.values?.[2] ?? ''} mm)`;
     case 'camera-moved-since-save':
-      return `Preset ${f.number}: Kamera seit dem Speichern ${f.values?.[0] ?? ''} m versetzt — Pan/Tilt zeigen woanders hin`;
+      return `Preset ${f.number}: Kamera seit dem Speichern ${formatLengthWithUnit(Number(f.values?.[0] ?? 0), units)} versetzt — Pan/Tilt zeigen woanders hin`;
     case 'not-a-ptz':
       return 'Diese Kamera ist keine PTZ — sie speichert keine Presets';
   }
@@ -289,7 +289,7 @@ function CameraCard({
   // anderen Position kollidiert. Aus demselben Grund hier und nicht in einem
   // eigenen Dialog wie die Sichtlinien: die Luecke entsteht beim EINRICHTEN
   // der Position, und dort steht auch das Feld, das sie schliesst.
-  const kartenBefunde = cardFindings(cam, cameras);
+  const kartenBefunde = cardFindings(cam, cameras, units);
 
   // Bedarf 63 -- der Bildzustand. Aus demselben Grund hier wie die uebrigen
   // Karten-Befunde: die Luecke entsteht beim Einrichten der Position, und
@@ -1094,27 +1094,25 @@ function CameraCard({
           </Group>
 
           <Group id="place" title={t('sidebar.cam.placement', 'Position & rig')} summary={`${mountTypeLabel(t, cam.mountType ?? 'tripod')} · ${length(cam.z)}`}>
-          <FieldRow label={t('sidebar.cam.position', 'Position (m)')}>
+          <FieldRow label={format(t('sidebar.cam.position', 'Position ({unit})'), { unit: lengthUnit(units) })}>
             <div className="grid grid-cols-2 gap-2">
-              <input
-                type="number"
+              <LengthInput
                 className="w-full border border-bc-border bg-bc-panel-raised text-bc-text-bright tabular-nums"
                 style={{ padding: '3px 6px' }}
                 value={cam.x}
-                step={0.5}
-                aria-label={t('sidebar.cam.posX.aria', 'Position X in metres')}
-                title={t('sidebar.cam.posX.title', 'Distance from the left edge (m)')}
-                onChange={(e) => updateCamera(cam.id, { x: parseFloat(e.target.value) || 0 })}
+                min={-10000}
+                aria-label={format(t('sidebar.cam.posX.aria', 'Position X ({unit})'), { unit: lengthUnit(units) })}
+                title={format(t('sidebar.cam.posX.title', 'Distance from the left edge ({unit})'), { unit: lengthUnit(units) })}
+                onChange={(x) => updateCamera(cam.id, { x })}
               />
-              <input
-                type="number"
+              <LengthInput
                 className="w-full border border-bc-border bg-bc-panel-raised text-bc-text-bright tabular-nums"
                 style={{ padding: '3px 6px' }}
                 value={cam.y}
-                step={0.5}
-                aria-label={t('sidebar.cam.posY.aria', 'Position Y in metres')}
-                title={t('sidebar.cam.posY.title', 'Distance from the top edge (m)')}
-                onChange={(e) => updateCamera(cam.id, { y: parseFloat(e.target.value) || 0 })}
+                min={-10000}
+                aria-label={format(t('sidebar.cam.posY.aria', 'Position Y ({unit})'), { unit: lengthUnit(units) })}
+                title={format(t('sidebar.cam.posY.title', 'Distance from the top edge ({unit})'), { unit: lengthUnit(units) })}
+                onChange={(y) => updateCamera(cam.id, { y })}
               />
             </div>
           </FieldRow>
@@ -1177,11 +1175,11 @@ function CameraCard({
                     </select>
                     {limits.rig && (
                       <span className="block mt-0.5 text-[10px] text-bc-dim leading-snug">
-                        {limits.minHeightM.toFixed(2)}–{limits.maxHeightM.toFixed(2)} m
-                        {limits.armLengthM ? ` · Ausleger ${limits.armLengthM.toFixed(1)} m` : ''}
-                        {limits.telescopeM ? ` · Teleskop ${limits.telescopeM.toFixed(1)} m` : ''}
+                        {length(limits.minHeightM)}–{length(limits.maxHeightM)}
+                        {limits.armLengthM ? ` · Ausleger ${length(limits.armLengthM)}` : ''}
+                        {limits.telescopeM ? ` · Teleskop ${length(limits.telescopeM)}` : ''}
                         {limits.payloadKg ? ` · max ${limits.payloadKg} kg` : ''}
-                        {limits.footprintM ? ` · Stellfläche ${limits.footprintM.w.toFixed(1)}×${limits.footprintM.d.toFixed(1)} m` : ''}
+                        {limits.footprintM ? ` · Stellfläche ${formatDimensions(limits.footprintM.w, limits.footprintM.d, units)}` : ''}
                         {limits.rig.notes ? ` — ${limits.rig.notes}` : ''}
                       </span>
                     )}
@@ -1239,7 +1237,7 @@ function CameraCard({
                     hint={(() => {
                       const plan = trackSectionPlan(limits.trackM);
                       const parts = plan.sections.map((sec) => `${sec.count}x${(sec.lengthM / 0.3048).toFixed(0)}'`).join(' + ');
-                      return `${limits.trackIsCustom ? t('sidebar.cam.ownLength', 'custom length') : t('sidebar.cam.suggestion', 'default')} · aus ${parts} = ${plan.total.toFixed(2)} m`;
+                      return `${limits.trackIsCustom ? t('sidebar.cam.ownLength', 'custom length') : t('sidebar.cam.suggestion', 'default')} · aus ${parts} = ${length(plan.total)}`;
                     })()}
                     title={t('sidebar.cam.railLength.title', 'Rail actually laid. The dolly runs half of it either way from the centre.')}
                     onChange={(v) => {
@@ -1315,7 +1313,7 @@ function CameraCard({
             )}
             {dof && (
               <>
-                <Readout label={t('sidebar.cam.dofNear', 'Near')} value={dof.nearLimit < 0.01 ? '0 m' : `${length(dof.nearLimit)}`} />
+                <Readout label={t('sidebar.cam.dofNear', 'Near')} value={dof.nearLimit < 0.01 ? length(0) : length(dof.nearLimit)} />
                 <Readout label={t('sidebar.cam.dofFar', 'Far')} value={dof.farLimit === Infinity ? '∞' : `${length(dof.farLimit)}`} />
                 <Readout label={t('sidebar.cam.dofTotal.label', 'Total depth of field')} value={dof.totalDof === Infinity ? '∞' : `${length(dof.totalDof)}`} tone="muted" />
               </>
@@ -1367,7 +1365,7 @@ function CameraCard({
               <div className="font-medium">{t('sidebar.cam.sightlineBlocked', 'Sightline blocked')}</div>
               <ul className="mt-0.5 space-y-0.5">
                 {sichtKonflikte.map((k) => (
-                  <li key={`${k.kind}-${k.obstacleId}`}>{conflictText(k)}</li>
+                  <li key={`${k.kind}-${k.obstacleId}`}>{conflictText(k, units)}</li>
                 ))}
               </ul>
             </Note>
@@ -1450,17 +1448,15 @@ function CameraCard({
                       Messung. Wer sie nicht teilt, traegt hier Meter ein. */}
                   {cam.coverage.framing === 'custom' && (
                     <div className="flex gap-1.5">
-                      <input
+                      <OptionalLengthInput
                         className={feldCls}
-                        type="number"
                         min={0}
-                        step={0.05}
-                        placeholder={t('sidebar.coverage.extentPh', 'Extent (m)')}
-                        aria-label={t('sidebar.coverage.extent.aria', 'Required extent in metres')}
-                        value={cam.coverage.extentM ?? ''}
-                        onChange={(e) =>
+                        placeholder={format(t('sidebar.coverage.extentPh', 'Extent ({unit})'), { unit: lengthUnit(units) })}
+                        aria-label={format(t('sidebar.coverage.extent.aria', 'Required extent ({unit})'), { unit: lengthUnit(units) })}
+                        value={cam.coverage.extentM}
+                        onChange={(extentM) =>
                           updateCamera(cam.id, {
-                            coverage: { ...cam.coverage!, extentM: zahlOderNichts(e.target.value) },
+                            coverage: { ...cam.coverage!, extentM },
                           })
                         }
                       />
@@ -1492,9 +1488,9 @@ function CameraCard({
                       anzweifelt, soll sehen, woraus sie kommt. */}
                   {deckungsZeile.verdict.kind !== 'not-computable' && (
                     <div className="mt-0.5 text-bc-muted">
-                      {deckungsZeile.extentM.toFixed(2).replace('.', ',')} m{' '}
+                      {length(deckungsZeile.extentM)}{' '}
                       {deckungsZeile.axis === 'width' ? t('sidebar.coverage.width', 'width') : t('sidebar.coverage.height', 'height')} {t('sidebar.coverage.from', 'from')}{' '}
-                      {deckungsZeile.distanceM.toFixed(2).replace('.', ',')} m
+                      {length(deckungsZeile.distanceM)}
                     </div>
                   )}
                 </Note>
@@ -1764,12 +1760,12 @@ function CameraCard({
                   </button>
                 </div>
 
-                {presetRows(cam).length === 0 ? (
+                {presetRows(cam, units).length === 0 ? (
                   <div className="text-bc-dim">{t('sidebar.cam.presetsEmpty', 'No preset documented yet.')}</div>
                 ) : (
                   <table className="w-full text-left">
                     <tbody>
-                      {presetRows(cam).map((r) => (
+                      {presetRows(cam, units).map((r) => (
                         <tr key={r.nummer} className="border-t border-bc-border align-top">
                           <td className="py-1 pr-1 font-mono text-blue-400">{r.nummer}</td>
                           <td className="py-1 pr-1">
@@ -1802,7 +1798,7 @@ function CameraCard({
                 {presetBefunde.length > 0 && (
                   <ul className="space-y-0.5 text-amber-400">
                     {presetBefunde.map((f: PresetFinding, i: number) => (
-                      <li key={`${f.kind}-${f.number ?? i}`}>{presetFindingText(f)}</li>
+                      <li key={`${f.kind}-${f.number ?? i}`}>{presetFindingText(f, units)}</li>
                     ))}
                   </ul>
                 )}
@@ -1837,17 +1833,15 @@ function CameraCard({
                 }
               />
               <div className="flex gap-1.5">
-                <input
+                <OptionalLengthInput
                   className={feldCls}
-                  type="number"
                   min={0}
-                  step={0.1}
-                  placeholder={t('sidebar.rigging.heightPh', 'Height (m)')}
-                  aria-label={t('sidebar.rigging.height', 'Riser height in metres')}
-                  value={cam.rigging?.riserHeightM ?? ''}
-                  onChange={(e) =>
+                  placeholder={format(t('sidebar.rigging.heightPh', 'Height ({unit})'), { unit: lengthUnit(units) })}
+                  aria-label={format(t('sidebar.rigging.height', 'Riser height ({unit})'), { unit: lengthUnit(units) })}
+                  value={cam.rigging?.riserHeightM}
+                  onChange={(riserHeightM) =>
                     updateCamera(cam.id, {
-                      rigging: { ...cam.rigging, riserHeightM: zahlOderNichts(e.target.value) },
+                      rigging: { ...cam.rigging, riserHeightM },
                     })
                   }
                 />
@@ -2128,6 +2122,8 @@ function CameraCard({
 export default function Sidebar() {
   const { t } = useTranslation();
   const units = useUnits(s => s.units);
+  const length = (meters: number) => formatLengthWithUnit(meters, units);
+  const planZoomFactor = units === 'metric' ? 1 : 0.3048;
   const {
     cameras, addCamera, venue, setVenue, showAllFov, toggleShowAllFov, showDof, toggleShowDof, clearAll,
     pixelsPerMeter, setPixelsPerMeter,
@@ -2163,8 +2159,8 @@ export default function Sidebar() {
   const [wallDrawMode, setWallDrawMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [calibAxis, setCalibAxis] = useState<'x' | 'y' | null>(null);
-  const [calibDistX, setCalibDistX] = useState('10');
-  const [calibDistY, setCalibDistY] = useState('10');
+  const [calibDistX, setCalibDistX] = useState(10);
+  const [calibDistY, setCalibDistY] = useState(10);
   const [autoResize, setAutoResize] = useState(true);
   const [scaleLocked, setScaleLocked] = useState(true);
 
@@ -2195,12 +2191,12 @@ export default function Sidebar() {
       setCalibAxis(null);
       window.dispatchEvent(new CustomEvent('multicam-calibrate', { detail: { active: false, distanceM: 0, axis } }));
     } else {
-      const dist = parseLength(axis === 'x' ? calibDistX : calibDistY, units);
-      if (dist === undefined || !Number.isFinite(dist) || dist <= 0) return;
+      const dist = axis === 'x' ? calibDistX : calibDistY;
+      if (!Number.isFinite(dist) || dist <= 0) return;
       setCalibAxis(axis);
       window.dispatchEvent(new CustomEvent('multicam-calibrate', { detail: { active: true, distanceM: dist, axis, autoResize, scaleLocked } }));
     }
-  }, [calibAxis, calibDistX, calibDistY, autoResize, scaleLocked, units]);
+  }, [calibAxis, calibDistX, calibDistY, autoResize, scaleLocked]);
 
   // Listen for calibration-done event from Venue2D to reset button state
   useEffect(() => {
@@ -2237,25 +2233,25 @@ export default function Sidebar() {
             </label>
             <div className="grid grid-cols-2 gap-2">
               <label>
-                <span className="text-bc-muted">Width ({units === 'metric' ? 'm' : 'ft / in'})</span>
+                <span className="text-bc-muted">{format(t('sidebar.widthM', 'Width ({unit})'), { unit: lengthUnit(units) })}</span>
                 <LengthInput className="w-full border border-bc-border bg-bc-panel-raised px-2 py-1 text-bc-text-bright" value={venue.widthM} min={0.01} onChange={(v) => setVenue({ ...venue, widthM: v })} />
               </label>
               <label>
-                <span className="text-bc-muted">Depth ({units === 'metric' ? 'm' : 'ft / in'})</span>
+                <span className="text-bc-muted">{format(t('sidebar.depthM', 'Depth ({unit})'), { unit: lengthUnit(units) })}</span>
                 <LengthInput className="w-full border border-bc-border bg-bc-panel-raised px-2 py-1 text-bc-text-bright" value={venue.heightM} min={0.01} onChange={(v) => setVenue({ ...venue, heightM: v })} />
               </label>
             </div>
             <Regler
               label={t('sidebar.zoomLabel', 'Plan zoom')}
-              value={pixelsPerMeter}
-              min={10}
-              max={80}
-              schritt={1}
-              dezimalen={0}
-              einheit="px/m"
-              standard={30}
-              marken={[10, 30, 50, 80]}
-              onChange={setPixelsPerMeter}
+              value={pixelsPerMeter * planZoomFactor}
+              min={10 * planZoomFactor}
+              max={80 * planZoomFactor}
+              schritt={units === 'metric' ? 1 : 0.1}
+              dezimalen={units === 'metric' ? 0 : 1}
+              einheit={units === 'metric' ? 'px/m' : 'px/ft'}
+              standard={30 * planZoomFactor}
+              marken={[10, 30, 50, 80].map((v) => v * planZoomFactor)}
+              onChange={(value) => setPixelsPerMeter(value / planZoomFactor)}
             />
           </div>
         )}
@@ -2309,19 +2305,19 @@ export default function Sidebar() {
                   marken={[5, 50, 100]}
                   onChange={(v) => setBackgroundPlan({ ...backgroundPlan, opacity: v / 100 })}
                 />
-                {/* mm/px auf log-Bahn: ein Plan liegt zwischen 1 und 500 mm/px,
+                {/* Laenge pro Pixel auf log-Bahn: ein Plan liegt zwischen 1 und 500 mm/px,
                     linear waeren alle ueblichen Massstaebe im ersten Prozent. */}
                 <Regler
                   label={t('sidebar.scaleXLabel', 'Scale X')}
-                  value={backgroundPlan.scaleX * 1000}
-                  min={1}
-                  max={500}
+                  value={backgroundPlan.scaleX * scaleDisplayFactor(units)}
+                  min={0.001 * scaleDisplayFactor(units)}
+                  max={0.5 * scaleDisplayFactor(units)}
                   skala="log"
-                  dezimalen={1}
-                  einheit="mm/px"
-                  marken={[1, 5, 10, 50, 100, 500]}
-                  hinweis={format(t('sidebar.planWidth', '{w} m wide'), { w: (backgroundPlan.widthPx * backgroundPlan.scaleX).toFixed(1) })}
-                  onChange={(mm) => { const v = mm / 1000; setBackgroundPlan({ ...backgroundPlan, scaleX: v, ...(scaleLocked ? { scaleY: v } : {}) }); }}
+                  dezimalen={units === 'metric' ? 1 : 3}
+                  einheit={scaleUnit(units)}
+                  marken={[0.001, 0.005, 0.01, 0.05, 0.1, 0.5].map((v) => v * scaleDisplayFactor(units))}
+                  hinweis={format(t('sidebar.planWidth', '{measure} wide'), { measure: length(backgroundPlan.widthPx * backgroundPlan.scaleX) })}
+                  onChange={(shown) => { const v = shown / scaleDisplayFactor(units); setBackgroundPlan({ ...backgroundPlan, scaleX: v, ...(scaleLocked ? { scaleY: v } : {}) }); }}
                 />
                 <div className="flex items-center gap-1">
                   <button
@@ -2335,16 +2331,16 @@ export default function Sidebar() {
                 </div>
                 <Regler
                   label={t('sidebar.scaleYLabel', 'Scale Y')}
-                  value={backgroundPlan.scaleY * 1000}
-                  min={1}
-                  max={500}
+                  value={backgroundPlan.scaleY * scaleDisplayFactor(units)}
+                  min={0.001 * scaleDisplayFactor(units)}
+                  max={0.5 * scaleDisplayFactor(units)}
                   skala="log"
-                  dezimalen={1}
-                  einheit="mm/px"
-                  marken={[1, 5, 10, 50, 100, 500]}
+                  dezimalen={units === 'metric' ? 1 : 3}
+                  einheit={scaleUnit(units)}
+                  marken={[0.001, 0.005, 0.01, 0.05, 0.1, 0.5].map((v) => v * scaleDisplayFactor(units))}
                   disabled={scaleLocked}
-                  hinweis={format(t('sidebar.planHeight', '{h} m tall'), { h: (backgroundPlan.heightPx * backgroundPlan.scaleY).toFixed(1) })}
-                  onChange={(mm) => setBackgroundPlan({ ...backgroundPlan, scaleY: mm / 1000 })}
+                  hinweis={format(t('sidebar.planHeight', '{measure} tall'), { measure: length(backgroundPlan.heightPx * backgroundPlan.scaleY) })}
+                  onChange={(shown) => setBackgroundPlan({ ...backgroundPlan, scaleY: shown / scaleDisplayFactor(units) })}
                 />
                 {/* Quick fit buttons */}
                 <div className="flex gap-1">
@@ -2379,33 +2375,37 @@ export default function Sidebar() {
                   </p>
                   <div className="flex gap-1 items-end">
                     <label className="flex-1">
-                      <span className="text-bc-dim">Known {scaleLocked ? '' : 'X '}distance ({units === 'metric' ? 'm' : 'ft / in'})</span>
-                      <input type="text"
+                      <span className="text-bc-dim">{scaleLocked
+                        ? format(t('sidebar.knownDistance', 'Known distance ({unit})'), { unit: lengthUnit(units) })
+                        : format(t('sidebar.knownXDistance', 'Known X distance ({unit})'), { unit: lengthUnit(units) })}</span>
+                      <LengthInput
                         className="w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright"
                         value={calibDistX}
-                        onChange={(e) => setCalibDistX(e.target.value)} />
+                        min={0.001}
+                        onChange={setCalibDistX} />
                     </label>
                     <button
                       onClick={() => startCalibration('x')}
                       className={`px-2 py-1 text-xs font-medium whitespace-nowrap ${calibAxis === 'x' ? 'bg-bc-red text-bc-text-bright' : 'bg-bc-green/20 text-bc-green-text hover:bg-bc-green/30'}`}
                     >
-                      {calibAxis === 'x' ? 'Cancel' : (scaleLocked ? t('sidebar.calibrate', 'Calibrate') : t('sidebar.calX', 'Cal X'))}
+                      {calibAxis === 'x' ? t('sidebar.cancel', 'Cancel') : (scaleLocked ? t('sidebar.calibrate', 'Calibrate') : t('sidebar.calX', 'Cal X'))}
                     </button>
                   </div>
                   {!scaleLocked && (
                     <div className="flex gap-1 items-end">
                       <label className="flex-1">
-                        <span className="text-bc-dim">Known Y distance ({units === 'metric' ? 'm' : 'ft / in'})</span>
-                        <input type="text"
+                        <span className="text-bc-dim">{format(t('sidebar.knownYDistance', 'Known Y distance ({unit})'), { unit: lengthUnit(units) })}</span>
+                        <LengthInput
                           className="w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright"
                           value={calibDistY}
-                          onChange={(e) => setCalibDistY(e.target.value)} />
+                          min={0.001}
+                          onChange={setCalibDistY} />
                       </label>
                       <button
                         onClick={() => startCalibration('y')}
                         className={`px-2 py-1 text-xs font-medium whitespace-nowrap ${calibAxis === 'y' ? 'bg-bc-red text-bc-text-bright' : 'bg-bc-green/20 text-bc-green-text hover:bg-bc-green/30'}`}
                       >
-                        {calibAxis === 'y' ? 'Cancel' : t('sidebar.calY', 'Cal Y')}
+                        {calibAxis === 'y' ? t('sidebar.cancel', 'Cancel') : t('sidebar.calY', 'Cal Y')}
                       </button>
                     </div>
                   )}
@@ -2416,16 +2416,16 @@ export default function Sidebar() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <label>
-                    <span className="text-bc-muted">{t('sidebar.offsetX', 'Offset X (m)')}</span>
-                    <input type="number" className="w-full border border-bc-border bg-bc-panel-raised px-1 py-0.5 text-bc-text-bright"
-                      value={backgroundPlan.offsetX} step={0.5}
-                      onChange={(e) => setBackgroundPlan({ ...backgroundPlan, offsetX: parseFloat(e.target.value) || 0 })} />
+                    <span className="text-bc-muted">{format(t('sidebar.offsetX', 'Offset X ({unit})'), { unit: lengthUnit(units) })}</span>
+                    <LengthInput className="w-full border border-bc-border bg-bc-panel-raised px-1 py-0.5 text-bc-text-bright"
+                      value={backgroundPlan.offsetX} min={-10000}
+                      onChange={(offsetX) => setBackgroundPlan({ ...backgroundPlan, offsetX })} />
                   </label>
                   <label>
-                    <span className="text-bc-muted">{t('sidebar.offsetY', 'Offset Y (m)')}</span>
-                    <input type="number" className="w-full border border-bc-border bg-bc-panel-raised px-1 py-0.5 text-bc-text-bright"
-                      value={backgroundPlan.offsetY} step={0.5}
-                      onChange={(e) => setBackgroundPlan({ ...backgroundPlan, offsetY: parseFloat(e.target.value) || 0 })} />
+                    <span className="text-bc-muted">{format(t('sidebar.offsetY', 'Offset Y ({unit})'), { unit: lengthUnit(units) })}</span>
+                    <LengthInput className="w-full border border-bc-border bg-bc-panel-raised px-1 py-0.5 text-bc-text-bright"
+                      value={backgroundPlan.offsetY} min={-10000}
+                      onChange={(offsetY) => setBackgroundPlan({ ...backgroundPlan, offsetY })} />
                   </label>
                 </div>
                 <button
@@ -2468,24 +2468,24 @@ export default function Sidebar() {
                 <div className="grid grid-cols-4 gap-1">
                   <label>
                     <span className="text-bc-dim">X</span>
-                    <input type="number" className="w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright text-xs" value={s.x} step={0.5}
-                      onChange={(e) => updateStage(s.id, { x: parseFloat(e.target.value) || 0 })} />
+                    <LengthInput className="w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright text-xs" value={s.x} min={-10000}
+                      onChange={(x) => updateStage(s.id, { x })} />
                   </label>
                   <label>
                     <span className="text-bc-dim">Y</span>
-                    <input type="number" className="w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright text-xs" value={s.y} step={0.5}
-                      onChange={(e) => updateStage(s.id, { y: parseFloat(e.target.value) || 0 })} />
+                    <LengthInput className="w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright text-xs" value={s.y} min={-10000}
+                      onChange={(y) => updateStage(s.id, { y })} />
                   </label>
                   <label>
                     <span className="text-bc-dim">W</span>
-                    <input type="number" className="w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright text-xs" value={s.width} step={0.5}
-                      onChange={(e) => updateStage(s.id, { width: parseFloat(e.target.value) || 1 })} />
+                    <LengthInput className="w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright text-xs" value={s.width} min={0.1}
+                      onChange={(width) => updateStage(s.id, { width })} />
                   </label>
                   <label>
-                    <span className="text-bc-dim">T</span>
-                    <input type="number" className="w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright text-xs" value={s.height} step={0.5}
-                      title={t('sidebar.stage.depth.title', 'Depth of the footprint in metres')}
-                      onChange={(e) => updateStage(s.id, { height: parseFloat(e.target.value) || 1 })} />
+                    <span className="text-bc-dim">D</span>
+                    <LengthInput className="w-full bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright text-xs" value={s.height} min={0.1}
+                      title={t('sidebar.stage.depth.title', 'Depth of the footprint')}
+                      onChange={(height) => updateStage(s.id, { height })} />
                   </label>
                 </div>
 
@@ -2494,20 +2494,15 @@ export default function Sidebar() {
                 <div className="mt-1 flex items-center gap-1">
                   <label className="flex items-center gap-1 text-bc-dim">
                     {t('sidebar.stage.height', 'Height')}
-                    <input
-                      type="number"
+                    <LengthInput
                       className="w-14 bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright text-xs tabular-nums"
                       value={s.elevationM ?? 0}
-                      step={0.1}
                       min={0}
                       max={10}
-                      title={t('sidebar.stage.height.title', 'Riser height above the floor in metres — 0 stays flat')}
-                      onChange={(e) => {
-                        const v = parseFloat(e.target.value);
-                        updateStage(s.id, { elevationM: Number.isFinite(v) ? Math.max(0, Math.min(10, v)) : 0 });
-                      }}
+                      title={t('sidebar.stage.height.title', 'Riser height above the floor — 0 stays flat')}
+                      onChange={(elevationM) => updateStage(s.id, { elevationM })}
                     />
-                    <span className="text-[10px] text-bc-faint">m</span>
+                    {units === 'metric' && <span className="text-[10px] text-bc-faint">m</span>}
                   </label>
                   <input
                     type="color"
@@ -2572,11 +2567,11 @@ export default function Sidebar() {
           <div className="space-y-2 text-xs" style={{ padding: '0 14px 12px' }}>
             {/* #198 — Standardhoehe; Waende ohne eigene Hoehe folgen ihr. */}
             <label className="flex items-center gap-2 text-[11px] text-bc-text">
-              <span className="flex-1">{t('sidebar.wallDefaultHeight', 'Standard height (m)')}</span>
+              <span className="flex-1">{format(t('sidebar.wallDefaultHeight', 'Standard height ({unit})'), { unit: lengthUnit(units) })}</span>
               <WallHeightField
                 className="w-16"
                 allowEmpty={false}
-                label={t('sidebar.wallDefaultHeight', 'Standard height (m)')}
+                label={format(t('sidebar.wallDefaultHeight', 'Standard height ({unit})'), { unit: lengthUnit(units) })}
                 value={defaultWallHeight(venue)}
                 onChange={(v) => v !== undefined && setVenue({ ...venue, defaultWallHeightM: v })}
               />
@@ -2612,12 +2607,12 @@ export default function Sidebar() {
                   />
                   <WallHeightField
                     className="w-14"
-                    label={t('sidebar.wallOwnHeight', 'Own height (m) — empty uses the standard height')}
-                    placeholder={String(defaultWallHeight(venue))}
+                    label={format(t('sidebar.wallOwnHeight', 'Own height ({unit}) — empty uses the standard height'), { unit: lengthUnit(units) })}
+                    placeholder={formatLength(defaultWallHeight(venue), units)}
                     value={w.height}
                     onChange={(v) => updateWall(w.id, { height: v })}
                   />
-                  <span className="text-bc-dim text-[10px]">m</span>
+                  <span className="text-bc-dim text-[10px]">{lengthUnit(units)}</span>
                   <button onClick={() => removeWall(w.id)} className="ml-auto p-0.5 hover:text-bc-red-text"><FiTrash2 size={11} /></button>
                 </div>
                 {/* Surface pattern for blur-checking in the preview (issue #45) */}
@@ -2755,7 +2750,7 @@ export default function Sidebar() {
                     onChange={(e) => updatePerson(p.id, { color: e.target.value })}
                     title={t('sidebar.customAccentColour', 'Custom accent colour')}
                   />
-                  <span className="text-bc-dim">({p.x.toFixed(1)}, {p.y.toFixed(1)})</span>
+                  <span className="text-bc-dim">({formatLength(p.x, units)}, {formatLength(p.y, units)} {lengthUnit(units)})</span>
                   <button onClick={() => removePerson(p.id)} className="ml-auto p-0.5 hover:text-bc-red-text"><FiTrash2 size={11} /></button>
                 </div>
               );

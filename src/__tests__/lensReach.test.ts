@@ -345,6 +345,7 @@ describe('Bedarf 58 — Reichweite der Optik', () => {
     expect(zeilen[0]).toContain('Sänger');
     expect(zeilen[1]).toMatch(/0,63 m Höhe aus 20,0[01] m/);
     expect(zeilen[2]).toContain('reicht nicht heran');
+    expect(coverageLines(bericht.rows[0], 'imperial')[1]).toMatch(/' .*"/);
     // Ohne Auftrag steht dort NICHTS -- eine leere Zeile waere eine Frage,
     // die niemand gestellt hat.
     expect(coverageLines(null)).toEqual([]);

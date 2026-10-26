@@ -31,6 +31,7 @@ import { useTranslation, format } from '../../i18n';
 import { motionProfileHint, motionProfileLabel, mountTypeLabel } from '../../i18n/mount';
 import { stampForStand } from '../../utils/documentStamp';
 import type { Shot } from '../../types';
+import { useUnits } from '../../store/units';
 
 /**
  * Shotlist-/Storyboard-Panel (#62 Punkt 5).
@@ -43,6 +44,7 @@ import type { Shot } from '../../types';
  */
 export default function ShotlistPanel() {
   const { t } = useTranslation();
+  const units = useUnits((s) => s.units);
   const {
     shotlists,
     activeShotlistId,
@@ -211,24 +213,24 @@ export default function ShotlistPanel() {
       list
         ? stampForStand({
             project: venue.name || list.name || 'Storyboard',
-            current: storyboardFingerprint(list),
+            current: storyboardFingerprint(list, units),
             now: new Date(),
           })
         : undefined,
-    [list, venue.name],
+    [list, units, venue.name],
   );
 
   const doExportPng = useCallback(async () => {
     if (!list || list.shots.length === 0) return;
     setBusy(true);
     try {
-      await exportStoryboardPng(list, venue.name, stempel());
+      await exportStoryboardPng(list, venue.name, stempel(), units);
     } catch {
       flash('Export fehlgeschlagen.');
     } finally {
       setBusy(false);
     }
-  }, [flash, list, stempel, venue.name]);
+  }, [flash, list, stempel, units, venue.name]);
 
   const btn =
     'px-2 py-1 rounded-bc-m text-[11px] border border-bc-border text-bc-text hover:text-bc-text-bright hover:border-bc-accent/60 disabled:opacity-40 disabled:hover:text-bc-text disabled:hover:border-bc-border transition-colors';
@@ -325,7 +327,7 @@ export default function ShotlistPanel() {
         </button>
         <button
           className={btn}
-          onClick={() => list && printStoryboard(list, venue.name, stempel())}
+          onClick={() => list && printStoryboard(list, venue.name, stempel(), units)}
           disabled={!list || shots.length === 0}
           title={t('shotlist.print', 'Print storyboard / save as PDF')}
         >
@@ -419,7 +421,7 @@ export default function ShotlistPanel() {
                     className="bg-transparent border border-transparent hover:border-bc-border focus:border-bc-accent px-1 py-0.5 text-xs font-medium text-bc-text-bright w-full outline-none"
                     title={t('shotlist.renameShot', 'Name the shot')}
                   />
-                  <div className="text-[10px] text-bc-muted px-1 truncate">{shotOpticsLabel(shot)}</div>
+                  <div className="text-[10px] text-bc-muted px-1 truncate">{shotOpticsLabel(shot, units)}</div>
                   <div className="flex items-center gap-1 px-1">
                     <button
                       onClick={(e) => {

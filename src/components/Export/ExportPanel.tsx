@@ -21,6 +21,8 @@ import { shadingLines } from '../../utils/shadingCapability';
 import { registryLines } from '../../utils/paintRegistry';
 import { useTranslation, format } from '../../i18n';
 import { WEBGL_POWER_PREFERENCE } from '../../utils/gpuInfo';
+import { useUnits } from '../../store/units';
+import { formatDimensions, formatLengthWithUnit } from '../../utils/units';
 
 export type ExportMode = 'current' | 'all' | 'widetele' | 'all-widetele';
 
@@ -43,6 +45,8 @@ export default function ExportPanel() {
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const { cameras, venue, persons, projectVersion } = useStore();
   const { t } = useTranslation();
+  const units = useUnits((s) => s.units);
+  const length = useCallback((meters: number) => formatLengthWithUnit(meters, units), [units]);
 
   const capture2DCanvas = useCallback((): HTMLCanvasElement | null => {
     const registry = getExportRegistry();
@@ -122,7 +126,7 @@ export default function ExportPanel() {
     // Bedarf 14 — die Preset-Tabelle bekommt eigene Hoehe, und zwar nur wenn
     // es Presets GIBT. Ein fester Block waere auf jeder Karte ohne PTZ eine
     // leere Flaeche, und die Karte ist ohnehin schon voll.
-    const presetZeilen = presetRows(targetCam);
+    const presetZeilen = presetRows(targetCam, units);
     const presetRowH = 18;
     const presetH = presetZeilen.length > 0 ? 40 + presetZeilen.length * presetRowH + 12 : 0;
     const totalH =
@@ -241,17 +245,17 @@ export default function ExportPanel() {
       { label: t('preview.export.d.lens', 'Lens:'), value: `${lensDef.manufacturer} ${lensDef.model}` },
       { label: t('preview.export.d.focalLength', 'Focal length:'), value: `${focalLength.toFixed(1)}mm${targetCam.extenderActive > 1 ? ` (×${targetCam.extenderActive} = ${(focalLength * targetCam.extenderActive).toFixed(0)}mm)` : ''}` },
       { label: t('preview.export.d.aperture', 'Aperture:'), value: `f/${targetCam.aperture}` },
-      { label: t('preview.export.d.focusDist', 'Focus dist:'), value: `${targetCam.focusDistance.toFixed(1)}m` },
-      { label: t('preview.export.d.position', 'Position:'), value: `X=${targetCam.x.toFixed(1)}m Y=${targetCam.y.toFixed(1)}m Z=${targetCam.z.toFixed(1)}m` },
+      { label: t('preview.export.d.focusDist', 'Focus dist:'), value: length(targetCam.focusDistance) },
+      { label: t('preview.export.d.position', 'Position:'), value: `X=${length(targetCam.x)} Y=${length(targetCam.y)} Z=${length(targetCam.z)}` },
       { raw: `Pan: ${targetCam.pan.toFixed(1)}°  Tilt: ${targetCam.tilt.toFixed(1)}°` },
       { gap: true },
       { label: t('preview.export.d.fovH', 'FOV H:'), value: `${fov.horizontalDeg.toFixed(2)}°`, color: GREEN },
       { label: t('preview.export.d.fovV', 'FOV V:'), value: `${fov.verticalDeg.toFixed(2)}°`, color: GREEN },
-      { label: t('preview.export.d.image', 'Image:'), value: `${fov.imageWidthAtDistance.toFixed(2)}m × ${fov.imageHeightAtDistance.toFixed(2)}m` },
+      { label: t('preview.export.d.image', 'Image:'), value: formatDimensions(fov.imageWidthAtDistance, fov.imageHeightAtDistance, units) },
       { label: t('preview.export.d.eqFl', '35mm eq FL:'), value: `${fov.equivalentFocalLength.toFixed(0)}mm` },
-      { label: t('preview.export.d.dof', 'DoF:'), value: `${dof.nearLimit < 0.01 ? '0' : dof.nearLimit.toFixed(2)}m – ${dof.farLimit === Infinity ? '∞' : dof.farLimit.toFixed(2) + 'm'}`, color: GREEN },
-      { label: t('preview.export.d.hyperfocal', 'Hyperfocal:'), value: `${dof.hyperfocal.toFixed(2)}m` },
-      { label: t('preview.export.d.person', 'Person 1.8m:'), value: `${personPx.toFixed(0)}px / 1080 (${((personPx / 1080) * 100).toFixed(1)}%)`, color: GREEN },
+      { label: t('preview.export.d.dof', 'DoF:'), value: `${length(dof.nearLimit < 0.01 ? 0 : dof.nearLimit)} – ${dof.farLimit === Infinity ? '∞' : length(dof.farLimit)}`, color: GREEN },
+      { label: t('preview.export.d.hyperfocal', 'Hyperfocal:'), value: length(dof.hyperfocal) },
+      { label: `${t('preview.export.d.person', 'Person')} ${length(1.8)}:`, value: `${personPx.toFixed(0)}px / 1080 (${((personPx / 1080) * 100).toFixed(1)}%)`, color: GREEN },
     ];
     if (adapterInfo) {
       const lossStr = adapterInfo.lightLossStops > 0 ? `−${adapterInfo.lightLossStops}T` : adapterInfo.lightLossStops < 0 ? `+${Math.abs(adapterInfo.lightLossStops)}T` : '0T';
@@ -277,7 +281,7 @@ export default function ExportPanel() {
     cy += lineH;
     ctx.font = '13px monospace';
     ctx.fillStyle = '#e5e7eb';
-    for (const line of riggingLines(targetCam)) {
+    for (const line of riggingLines(targetCam, units)) {
       ctx.fillStyle = line.includes(UNSTATED) ? '#f59e0b' : '#e5e7eb';
       ctx.fillText(line, cx, cy);
       cy += lineH;
@@ -322,7 +326,7 @@ export default function ExportPanel() {
       persons,
       optics: () => ({ sensor, lens: lensDef }),
     }).rows[0] ?? null;
-    const deckungZeilen = coverageLines(deckung);
+    const deckungZeilen = coverageLines(deckung, units);
     if (deckungZeilen.length > 0) {
       cy += 8;
       ctx.fillStyle = '#3b82f6';
@@ -528,7 +532,7 @@ export default function ExportPanel() {
         // ein anderes Blatt, auch wenn Kamera und Optik gleich blieben. Und
         // genau dieser Fall ist der, bei dem jemand mit dem alten Zettel auf
         // den falschen Kanal schaltet.
-        extras: cardExtraRows(targetCam),
+        extras: cardExtraRows(targetCam, units),
         // Bedarf 58 — dieselbe Regel wie bei Rigging/Comms: was auf dem Blatt
         // zu SEHEN ist, geht in den Fingerabdruck. Ein verschobener Standort
         // oder eine getauschte Optik macht aus „erreichbar" ein „reicht nicht
@@ -570,7 +574,7 @@ export default function ExportPanel() {
     // ── Restore overrides ──
     if (needFocalChange) useStore.getState().updateCamera(targetCam.id, { focalLength: originalFocal });
     if (needSelectionChange) useStore.getState().selectCamera(originalSelected);
-  }, [cameras, venue, projectVersion, capture2DCanvas, capture3DCanvas, capturePreviewCanvas, waitForPaint, t]);
+  }, [cameras, venue, persons, projectVersion, capture2DCanvas, capture3DCanvas, capturePreviewCanvas, waitForPaint, t, length, units]);
 
   const generateExport = useCallback(async (mode: ExportMode = 'current') => {
     const state = useStore.getState();

@@ -90,6 +90,7 @@
 
 import type { CoverageAssignment, FramingName, Lens, ReachAxis, ReferencePerson, SensorSize, VenueCamera } from '../types';
 import { effectiveCameraPos } from './camera';
+import { formatLengthWithUnit, type Units } from './units';
 
 /** Was diese Rechnung von einem Motiv braucht. */
 export type ReachSubject = Pick<ReferencePerson, 'id' | 'label' | 'x' | 'y' | 'width' | 'height'>;
@@ -371,19 +372,20 @@ export function reachReport(input: ReachInput): ReachReport {
 }
 
 const mm = (v: number): string => `${Math.round(v)} mm`;
-const m = (v: number): string => `${v.toFixed(2).replace('.', ',')} m`;
+const length = (v: number, units: Units): string =>
+  units === 'metric' ? `${v.toFixed(2).replace('.', ',')} m` : formatLengthWithUnit(v, units);
 
 /**
  * Das Urteil im Klartext. Kanonisches Deutsch — es landet auch auf Blaettern,
  * und dort steht IMMER das geforderte Mass und die Entfernung dabei: wer die
  * Zahl anzweifelt, soll sehen, woraus sie kommt.
  */
-export function reachText(row: CoverageRow): string {
+export function reachText(row: CoverageRow, units: Units = 'metric'): string {
   const was = `${FRAMING_LABEL[row.framing]} auf „${row.subjectLabel}"`;
   if (row.verdict.kind === 'not-computable') {
     return `${cam(row)} soll ${was} liefern: ${verdictShort(row.verdict)}`;
   }
-  const woraus = `${m(row.extentM)} ${row.axis === 'width' ? 'Breite' : 'Höhe'} aus ${m(row.distanceM)}`;
+  const woraus = `${length(row.extentM, units)} ${row.axis === 'width' ? 'Breite' : 'Höhe'} aus ${length(row.distanceM, units)}`;
   return `${cam(row)} soll ${was} liefern (${woraus}): ${verdictShort(row.verdict)}`;
 }
 
@@ -401,11 +403,11 @@ const cam = (row: CoverageRow): string => `„${row.cameraLabel}"`;
  * kein Verschweigen: dort fehlt eine Angabe, die es geben muesste, hier fehlt
  * eine Anforderung, die niemand gestellt hat.
  */
-export function coverageLines(row: CoverageRow | null): string[] {
+export function coverageLines(row: CoverageRow | null, units: Units = 'metric'): string[] {
   if (!row) return [];
   return [
     `Auftrag:     ${FRAMING_LABEL[row.framing]} auf „${row.subjectLabel}"`,
-    `Maß:         ${m(row.extentM)} ${row.axis === 'width' ? 'Breite' : 'Höhe'} aus ${m(row.distanceM)}`,
+    `Maß:         ${length(row.extentM, units)} ${row.axis === 'width' ? 'Breite' : 'Höhe'} aus ${length(row.distanceM, units)}`,
     `Optik:       ${verdictShort(row.verdict)}`,
   ];
 }

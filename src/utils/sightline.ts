@@ -35,6 +35,7 @@
 import type { ReferencePerson, Stage, VenueCamera, Wall } from '../types';
 import { defaultWallHeight, resolveWallHeights } from './wallHeight';
 import { effectiveCameraPos } from './camera';
+import { formatLengthWithUnit, type Units } from './units';
 
 /** Ein Punkt im Raum (Meter). */
 export interface Point3 {
@@ -246,5 +247,5 @@ const ART: Record<ObstacleKind, string> = {
 };
 
 /** Klartext eines Konflikts. Kanonisches Deutsch — er landet auch auf Blaettern. */
-export const conflictText = (c: SightlineConflict): string =>
-  `${ART[c.kind]} „${c.obstacleLabel}" steht ${c.atDistanceM} m vor ${c.cameraLabel} und ragt ${c.intrusionM} m in die Sichtlinie`;
+export const conflictText = (c: SightlineConflict, units: Units = 'metric'): string =>
+  `${ART[c.kind]} „${c.obstacleLabel}" steht ${formatLengthWithUnit(c.atDistanceM, units)} vor ${c.cameraLabel} und ragt ${formatLengthWithUnit(c.intrusionM, units)} in die Sichtlinie`;
