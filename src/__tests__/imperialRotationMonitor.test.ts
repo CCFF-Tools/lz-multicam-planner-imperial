@@ -36,11 +36,12 @@ describe('architectural measurements', () => {
 describe('venue compatibility', () => {
   const venue: Venue = { name: 'Test', widthM: 20, heightM: 10, stages: [], videoWalls: [{ id: 'monitor', displayType: 'monitor', x: 3, y: 2, widthM: 1.2, heightM: 0.675, bottomM: 1.5, rotationDeg: 37.5 }] };
   it.each(['person', 'sitting-person', 'lectern', 'chair', 'table'] as const)('preserves %s orientation and monitors through JSON exchange', objectType => {
-    const person: ReferencePerson = { id: 'p', x: 2, y: 4, width: 0.5, height: 1.8, label: 'P', objectType, rotationDeg: -397.5 };
+    const person: ReferencePerson = { id: 'p', x: 2, y: 4, width: 0.5, height: 1.8, label: 'P', objectType, rotationDeg: -397.5, ...(objectType === 'table' ? { depth: 0.9 } : {}) };
     const result = fromVenueExchange(JSON.parse(JSON.stringify(toVenueExchange({ venue, persons: [person], walls: [], backgroundPlan: null, appVersion: '4.9.0', exportedAt: '2026-10-25T00:00:00Z' }))));
     expect(result.persons[0].rotationDeg).toBe(-397.5);
     expect(result.venue.videoWalls?.[0]).toEqual(venue.videoWalls![0]);
     expect(result.persons[0].x).toBe(2);
+    if (objectType === 'table') expect(result.persons[0].depth).toBe(0.9);
   });
   it('retains old LED defaults and normalizes arbitrary monitor angles', () => {
     const wall = venue.videoWalls![0];
@@ -56,7 +57,7 @@ it('uses shared scene orientation while preserving automatic facing', () => {
   expect(objectYaw()).toBe(-0);
 });
 it('preserves optional fields through native project serialization', () => {
-  const person: ReferencePerson = { id: 'p', x: 2, y: 3, height: 1.7, width: 0.5, label: 'P', objectType: 'sitting-person', rotationDeg: 123.4 };
+  const person: ReferencePerson = { id: 'p', x: 2, y: 3, height: 0.75, width: 1.2, depth: 0.8, label: 'Table', objectType: 'table', rotationDeg: 123.4 };
   const venue: Venue = { name: 'V', widthM: 20, heightM: 10, stages: [], videoWalls: [{ id: 'm', x: 1, y: 2, widthM: 1.2, heightM: 0.7, displayType: 'monitor', rotationDeg: 45 }] };
   const file = buildProjectFile({ projectVersion: 1, venue, persons: [person], cameras: [], walls: [], backgroundPlan: null, avForeign: {}, stageForeign: {}, floorPlanForeign: {}, wallForeign: {}, personForeign: {} });
   const restored = JSON.parse(JSON.stringify(file));

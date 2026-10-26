@@ -292,14 +292,21 @@ describe('ADR-005 — Wände überleben den Venue-Round-Trip', () => {
   } as never).venue.walls;
 
   it('hält Krümmung und Reflexionsgrad über den Round-Trip', () => {
-    // Eine fehlende Kruemmung heisst nicht "unbekannt", sondern GERADE — die
-    // gebogene Wand kam als Strecke zurueck.
     const imported = fromVenueExchange(wallVenue());
-    expect(imported.wallForeign['w1']).toEqual({ cx: 6, cy: 2, reflectance: 0.9 });
+    expect(imported.walls[0]).toMatchObject({ cx: 6, cy: 2 });
+    expect(imported.wallForeign['w1']).toEqual({ reflectance: 0.9 });
     const out = exportWalls(imported.walls, imported.wallForeign)[0];
     expect(out.cx).toBe(6);
     expect(out.cy).toBe(2);
     expect(out.reflectance).toBe(0.9);
+  });
+
+  it('exports curve control preserved by legacy native wall metadata', () => {
+    const out = exportWalls(
+      [{ id: 'w1', x1: 0, y1: 0, x2: 5, y2: 0, height: 3, label: '' }],
+      { w1: { cx: 2.5, cy: 1 } },
+    )[0];
+    expect(out).toMatchObject({ cx: 2.5, cy: 1 });
   });
 
   it('schreibt die eigene Wandfarbe, die es bisher verschwieg', () => {

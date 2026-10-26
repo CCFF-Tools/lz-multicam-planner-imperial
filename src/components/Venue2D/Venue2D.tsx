@@ -24,7 +24,10 @@ import PlanVorschauOverlay from './PlanVorschauOverlay';
 import { wandDicke } from '../../utils/wallOpenings';
 import { usePlanLaden } from '../../lib/usePlanLaden';
 import EditGroupsBar from './EditGroupsBar';
+import PlanVisibilityBar from './PlanVisibilityBar';
+import { DEFAULT_PLAN_VISIBILITY, type PlanVisibilityKey } from './planVisibility';
 import RaumOverlay, { type RaumAuswahl } from './RaumOverlay';
+import { defaultWallControlPoint, wallPathPoints, wallPoint } from '../../utils/wallPath';
 
 // Shared style for context-menu items (issue #38).
 const ctxItemStyle: React.CSSProperties = {
@@ -130,7 +133,13 @@ export default function Venue2D() {
   // ── Stage resize (issue #42): select a stage to show a Konva Transformer
   // with corner/edge anchors. ──
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
   const [raumAuswahl, setRaumAuswahl] = useState<RaumAuswahl>(null);
+  const [visibility, setVisibility] = useState(DEFAULT_PLAN_VISIBILITY);
+  const toggleVisibility = useCallback((key: PlanVisibilityKey) => {
+    setVisibility((current) => ({ ...current, [key]: !current[key] }));
+  }, []);
   const trRef = useRef<Konva.Transformer>(null);
   const stageNodeRefs = useRef<Record<string, Konva.Group>>({});
 
@@ -139,7 +148,9 @@ export default function Venue2D() {
   const [menu, setMenu] = useState<MenuTarget | null>(null);
 
   // ── Wall drawing mode ──
-  const [drawingWall, setDrawingWall] = useState(false);
+  const [wallDrawKind, setWallDrawKind] = useState<'straight' | 'curved' | null>(null);
+  const wallDrawKindRef = useRef<'straight' | 'curved' | null>(null);
+  const drawingWall = wallDrawKind !== null;
   const [wallStart, setWallStart] = useState<{ x: number; y: number } | null>(null);
   const [wallCursor, setWallCursor] = useState<{ x: number; y: number } | null>(null);
   const shiftHeld = useRef(false);
@@ -161,7 +172,10 @@ export default function Venue2D() {
   // Listen for wall-draw-mode toggle from sidebar or toolbar
   useEffect(() => {
     const handler = (e: Event) => {
-      setDrawingWall((e as CustomEvent).detail?.active ?? true);
+      const detail = (e as CustomEvent<{ active?: boolean; curved?: boolean }>).detail;
+      const kind = (detail?.active ?? true) ? (detail?.curved ? 'curved' : 'straight') : null;
+      wallDrawKindRef.current = kind;
+      setWallDrawKind(kind);
       setWallStart(null);
       setWallCursor(null);
     };
@@ -340,6 +354,8 @@ export default function Venue2D() {
     // Clicking empty canvas (the Konva Stage itself) clears the stage selection.
     if (e.target === e.target.getStage() && !drawingWall && !calibActive) {
       setSelectedStageId(null);
+      setSelectedPersonId(null);
+      setSelectedWallId(null);
       setRaumAuswahl(null);
     }
     const point = getPointerWorldPoint();
@@ -357,11 +373,13 @@ export default function Venue2D() {
       const snappedEnd = snapToEndpoints(snapPoint(wallStart, worldPoint));
       const length = Math.hypot(snappedEnd.x - wallStart.x, snappedEnd.y - wallStart.y);
       if (length >= 0.1) {
+        const control = wallDrawKindRef.current === 'curved' ? defaultWallControlPoint({ x1: wallStart.x, y1: wallStart.y, x2: snappedEnd.x, y2: snappedEnd.y }) : null;
         addWall({
           x1: wallStart.x,
           y1: wallStart.y,
           x2: snappedEnd.x,
           y2: snappedEnd.y,
+          ...(control ? { cx: control.x, cy: control.y } : {}),
           label: `Wall ${walls.length + 1}`,
         });
       }
@@ -688,6 +706,7 @@ export default function Venue2D() {
       )}
       {/* Zoom indicator */}
       <EditGroupsBar />
+      <PlanVisibilityBar value={visibility} onToggle={toggleVisibility} />
       <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, background: P.chip, padding: '4px 10px', borderRadius: 'var(--radius-bc-full)', fontSize: 11, color: P.chipText, pointerEvents: 'none', backdropFilter: 'blur(4px)' }}>
         {(zoom * 100).toFixed(0)}%
       </div>
@@ -717,7 +736,7 @@ export default function Venue2D() {
       {/* ── Layer 1: Static background (venue, image, grid, scale bar) ── */}
       <Layer listening={false}>
         <Rect x={0} y={0} width={W} height={H} fill={P.blatt} />
-        {bgImage && backgroundPlan && (
+        {visibility.floorplan && bgImage && backgroundPlan && (
           <KImage
             image={bgImage}
             x={(backgroundPlan.offsetX) * ppm}
@@ -750,7 +769,7 @@ export default function Venue2D() {
       {/* ── Layer 2: Interactive objects (FOV, stages, walls, persons, cameras) ── */}
       <Layer>
         {/* FOV cones (non-interactive, rendered first = behind everything) */}
-        {cameras.map((cam) => {
+        {visibility.cameras && cameras.map((cam) => {
           if (!showAllFov && cam.id !== selectedCameraId) return null;
           const camDef = getCameraById(cam.cameraId, useStore.getState().customCameras);
           const lensDef = getLensById(cam.lensId, useStore.getState().customLenses);
@@ -830,7 +849,7 @@ export default function Venue2D() {
 
         {/* Publikum und Videowaende liegen unter den Buehnen: die Buehne ist
             das, was man zuerst greifen will. */}
-        <RaumOverlay
+        {visibility.room && <RaumOverlay
           ppm={ppm}
           blocks={venue.seatingBlocks ?? []}
           walls={venue.videoWalls ?? []}
@@ -839,11 +858,11 @@ export default function Venue2D() {
           onAuswahl={(a) => { setRaumAuswahl(a); if (a) setSelectedStageId(null); }}
           onBlock={updateSeatingBlock}
           onWand={updateVideoWall}
-        />
+        />}
 
         {/* Stages — click to select (shows resize handles), drag to move,
             right-click for the context menu (issue #42 / #38). */}
-        {venue.stages.map((s) => (
+        {visibility.stage && venue.stages.map((s) => (
           <Group
             key={s.id}
             ref={(node) => { if (node) stageNodeRefs.current[s.id] = node; else delete stageNodeRefs.current[s.id]; }}
@@ -851,8 +870,8 @@ export default function Venue2D() {
             y={s.y * ppm}
             draggable={!drawingWall && !s.locked && !lockStages}
             onDragEnd={(e) => handleStageDragEnd(s.id, e)}
-            onClick={(e) => { if (!drawingWall && !calibActive) { e.cancelBubble = true; setRaumAuswahl(null); setSelectedStageId(s.locked || lockStages ? null : s.id); } }}
-            onTap={(e) => { if (!drawingWall && !calibActive) { e.cancelBubble = true; setRaumAuswahl(null); setSelectedStageId(s.locked || lockStages ? null : s.id); } }}
+            onClick={(e) => { if (!drawingWall && !calibActive) { e.cancelBubble = true; setRaumAuswahl(null); setSelectedPersonId(null); setSelectedWallId(null); setSelectedStageId(s.locked || lockStages ? null : s.id); } }}
+            onTap={(e) => { if (!drawingWall && !calibActive) { e.cancelBubble = true; setRaumAuswahl(null); setSelectedPersonId(null); setSelectedWallId(null); setSelectedStageId(s.locked || lockStages ? null : s.id); } }}
             onContextMenu={(e) => openContextMenu('stage', s.id, !!s.locked, e)}
             onTransformEnd={(e) => handleStageTransformEnd(s.id, e)}
           >
@@ -880,7 +899,7 @@ export default function Venue2D() {
           </Group>
         ))}
         {/* Resize handles for the selected stage */}
-        <Transformer
+        {visibility.stage && <Transformer
           ref={trRef}
           rotateEnabled={false}
           keepRatio={false}
@@ -891,28 +910,45 @@ export default function Venue2D() {
           borderStroke="#60a5fa"
           enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right', 'middle-left', 'middle-right', 'top-center', 'bottom-center']}
           boundBoxFunc={(oldBox, newBox) => (newBox.width < 8 || newBox.height < 8 ? oldBox : newBox)}
-        />
+        />}
 
         {/* Walls */}
-        {walls.map((w) => (
+        {visibility.floorplan && walls.map((w) => {
+          const points = wallPathPoints(w).flatMap((point) => [point.x * ppm, point.y * ppm]);
+          const labelPoint = wallPoint(w, 0.5);
+          const selected = selectedWallId === w.id;
+          return (
           <React.Fragment key={`wall-${w.id}`}>
             <Line
-              points={[w.x1 * ppm, w.y1 * ppm, w.x2 * ppm, w.y2 * ppm]}
+              points={points}
               stroke="#9ca3af" strokeWidth={Math.max(3, wandDicke(w) * ppm)} hitStrokeWidth={Math.max(10, wandDicke(w) * ppm)}
               draggable={!drawingWall && !lockWalls}
+              onClick={(e) => { e.cancelBubble = true; setSelectedWallId(w.id); setSelectedPersonId(null); setSelectedStageId(null); }}
+              onTap={(e) => { e.cancelBubble = true; setSelectedWallId(w.id); setSelectedPersonId(null); setSelectedStageId(null); }}
               onContextMenu={(e) => { e.evt.preventDefault(); if (!lockWalls) openContextMenu('wall', w.id, false, e); }}
               onDragEnd={(e) => {
                 const dx = e.target.x() / ppm;
                 const dy = e.target.y() / ppm;
                 e.target.position({ x: 0, y: 0 });
-                updateWall(w.id, { x1: w.x1 + dx, y1: w.y1 + dy, x2: w.x2 + dx, y2: w.y2 + dy });
+                updateWall(w.id, { x1: w.x1 + dx, y1: w.y1 + dy, x2: w.x2 + dx, y2: w.y2 + dy, ...(w.cx !== undefined && w.cy !== undefined ? { cx: w.cx + dx, cy: w.cy + dy } : {}) });
               }}
             />
-            <Circle x={w.x1 * ppm} y={w.y1 * ppm} radius={5} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingWall && !lockWalls} onDragMove={(e) => handleWallEndpointDragMove(w, 'start', e)} />
-            <Circle x={w.x2 * ppm} y={w.y2 * ppm} radius={5} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingWall && !lockWalls} onDragMove={(e) => handleWallEndpointDragMove(w, 'end', e)} />
-            <Text x={((w.x1 + w.x2) / 2) * ppm - 20} y={((w.y1 + w.y2) / 2) * ppm - 14} text={w.label} fontSize={9} fill="#9ca3af" align="center" width={40} />
+            {selected && !lockWalls && <>
+              <Circle x={w.x1 * ppm} y={w.y1 * ppm} radius={5} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingWall} onDragMove={(e) => handleWallEndpointDragMove(w, 'start', e)} />
+              <Circle x={w.x2 * ppm} y={w.y2 * ppm} radius={5} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingWall} onDragMove={(e) => handleWallEndpointDragMove(w, 'end', e)} />
+              {w.cx !== undefined && w.cy !== undefined && <>
+                <Line points={[w.x1 * ppm, w.y1 * ppm, w.cx * ppm, w.cy * ppm, w.x2 * ppm, w.y2 * ppm]} stroke="#f59e0b" strokeWidth={1} dash={[4, 4]} opacity={0.55} listening={false} />
+                <Circle x={w.cx * ppm} y={w.cy * ppm} radius={6} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingWall} onDragMove={(e) => {
+                  const cx = e.target.x() / ppm;
+                  const cy = e.target.y() / ppm;
+                  updateWall(w.id, { cx, cy });
+                }} />
+              </>}
+            </>}
+            <Text x={labelPoint.x * ppm - 30} y={labelPoint.y * ppm - 14} text={w.label} fontSize={9} fill="#9ca3af" align="center" width={60} listening={false} />
           </React.Fragment>
-        ))}
+          );
+        })}
         {planVorschau && (
           <PlanVorschauOverlay
             vorschau={planVorschau}
@@ -932,7 +968,7 @@ export default function Venue2D() {
             listening={false}
           />
         )}
-        {drawingWall && wallStart && wallCursor && (
+        {visibility.floorplan && drawingWall && wallStart && wallCursor && (
           <>
             <Line points={[wallStart.x * ppm, wallStart.y * ppm, wallCursor.x * ppm, wallCursor.y * ppm]} stroke="#f59e0b" strokeWidth={2} dash={[6, 4]} listening={false} />
             <Circle x={wallStart.x * ppm} y={wallStart.y * ppm} radius={4} fill="#f59e0b" listening={false} />
@@ -940,7 +976,7 @@ export default function Venue2D() {
         )}
 
         {/* Persons */}
-        {persons.map((p) => {
+        {visibility.objects && persons.map((p) => {
           const type = p.objectType ?? 'person';
           const col = p.color ?? (
             type === 'drums' ? '#ef4444' :
@@ -955,29 +991,35 @@ export default function Venue2D() {
             '#f59e0b'
           );
           const footW = Math.max(6, p.width * ppm);
+          const footD = Math.max(6, (p.objectType === 'table' ? (p.depth ?? p.width * 2 / 3) : p.width / 2) * ppm);
+          const selected = selectedPersonId === p.id;
           return (
-            <Group rotation={p.rotationDeg ?? 0} key={p.id} x={p.x * ppm} y={p.y * ppm} draggable={!p.locked && !lockPersons} onDragEnd={(e) => handlePersonDragEnd(p.id, e)} onContextMenu={(e) => { e.evt.preventDefault(); if (!lockPersons) openContextMenu('person', p.id, !!p.locked, e); }}>
-              {!p.locked && !lockPersons && <Circle x={0} y={-footW / 2 - 16} radius={5} fill="#ffffff" stroke={col} draggable onDragStart={(e) => { e.cancelBubble = true; }} onDragEnd={(e) => {
+            <Group key={p.id} x={p.x * ppm} y={p.y * ppm} draggable={!p.locked && !lockPersons} onDragEnd={(e) => handlePersonDragEnd(p.id, e)} onClick={(e) => { e.cancelBubble = true; setSelectedPersonId(p.id); setSelectedWallId(null); setSelectedStageId(null); }} onTap={(e) => { e.cancelBubble = true; setSelectedPersonId(p.id); setSelectedWallId(null); setSelectedStageId(null); }} onContextMenu={(e) => { e.evt.preventDefault(); if (!lockPersons) openContextMenu('person', p.id, !!p.locked, e); }}>
+              <Group rotation={p.rotationDeg ?? 0}>
+              {selected && !p.locked && !lockPersons && <>
+                <Line points={[0, -footD / 2, 0, -footD / 2 - 16]} stroke={col} strokeWidth={1} dash={[3, 3]} listening={false} />
+                <Circle x={0} y={-footD / 2 - 16} radius={5} fill="#ffffff" stroke={col} draggable onDragStart={(e) => { e.cancelBubble = true; }} onDragEnd={(e) => {
                 e.cancelBubble = true;
                 const node = e.target;
-                const parent = node.getParent();
-                const pos = parent?.getStage()?.getPointerPosition();
-                if (parent && pos) {
-                  const point = parent.getAbsoluteTransform().copy().invert().point(pos);
-                  let angle = (p.rotationDeg ?? 0) + Math.atan2(point.x, -point.y) * 180 / Math.PI;
+                const outer = node.getParent()?.getParent();
+                const pos = outer?.getStage()?.getPointerPosition();
+                if (outer && pos) {
+                  const point = outer.getAbsoluteTransform().copy().invert().point(pos);
+                  let angle = Math.atan2(point.x, -point.y) * 180 / Math.PI;
                   if (e.evt.shiftKey) angle = Math.round(angle / 15) * 15;
                   updatePerson(p.id, { rotationDeg: angle });
                 }
-                node.position({ x: 0, y: -footW / 2 - 16 });
-              }} />}
+                node.position({ x: 0, y: -footD / 2 - 16 });
+              }} /></>}
               {type === 'table' || type === 'drums' || type === 'keys' ? (
-                <Rect x={-footW / 2} y={-footW / 4} width={footW} height={footW / 2} fill={col} opacity={0.55} stroke={col} strokeWidth={1} cornerRadius={2} />
+                <Rect x={-footW / 2} y={-footD / 2} width={footW} height={footD} fill={col} opacity={0.55} stroke={col} strokeWidth={1} cornerRadius={2} />
               ) : type === 'schneetiger' ? (
                 <Rect x={-footW / 2} y={-footW / 4} width={footW} height={footW / 2} fill={col} opacity={0.85} stroke="#1f2937" strokeWidth={1} cornerRadius={footW / 4} />
               ) : (
                 <Circle radius={Math.max(5, footW / 3)} fill={col} stroke="#fff" strokeWidth={1} opacity={0.85} />
               )}
-              <Text x={-26} y={8} text={`${p.locked ? '🔒 ' : ''}${p.label} (${length(p.height)})`} fontSize={9} fill={col} align="center" width={52} />
+              </Group>
+              <Text x={-40} y={Math.max(8, footD / 2 + 4)} text={`${p.locked ? '🔒 ' : ''}${p.label} (${length(p.height)})`} fontSize={9} fill={col} align="center" width={80} listening={false} />
             </Group>
           );
         })}
@@ -986,7 +1028,7 @@ export default function Venue2D() {
             Ausleger und Fahrweg — aus den echten Maßen des gewaehlten Rigs
             (utils/rigGeometry). Vor der Kamera-Marke gezeichnet, damit die
             Marke oben liegt. */}
-        {cameras.map((cam) => {
+        {visibility.cameras && cameras.map((cam) => {
           if (!showAllFov && cam.id !== selectedCameraId) return null;
           return (
             <RigOverlay
@@ -1006,7 +1048,7 @@ export default function Venue2D() {
         {/* Camera icons (on top). Position uses effectiveCameraPos so the
             live-track slider (jib swing / dolly travel) visibly moves the
             marker along the track line. */}
-        {cameras.map((cam) => {
+        {visibility.cameras && cameras.map((cam) => {
           const isSelected = cam.id === selectedCameraId;
           const pos = effectiveCameraPos(cam);
           return (

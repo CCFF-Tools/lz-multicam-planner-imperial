@@ -136,6 +136,12 @@ describe('was gemeldet wird', () => {
     ]);
   });
 
+  it('uses the sampled centreline of a curved wall', () => {
+    const curved = wand({ x1: 5, y1: 2, x2: 5, y2: 4, cx: 5, cy: -4, height: 3 });
+    expect(sightlineConflicts({ ...leer, cameras: [kamera()], walls: [curved] })).toHaveLength(1);
+    expect(sightlineConflicts({ ...leer, cameras: [kamera()], walls: [{ ...curved, cx: undefined, cy: undefined }] })).toEqual([]);
+  });
+
   it('das Pult vor der Kamera', () => {
     const k = sightlineConflicts({ ...leer, cameras: [kamera({ z: 1 })], persons: [objekt({ height: 1.2 })] });
     expect(k).toHaveLength(1);

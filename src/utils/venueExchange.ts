@@ -88,14 +88,11 @@ export interface ForeignFloorPlanFields {
 }
 
 /**
- * ADR-005 — Wand-Felder, die MultiCam nicht modelliert.
+ * ADR-005 — Wand-Felder aus dem gemeinsamen Austauschformat.
  *
- * Light kennt gekruemmte Waende (`cx`/`cy`, ein Bezier-Kontrollpunkt) und
- * einen Reflexionsgrad. MultiCams Wand ist eine Strecke. Die Felder fielen
- * beim Import weg und wurden beim Export nicht geschrieben — lights Import
- * setzt danach `reflectance ?? 0.5` ein, und die fehlende Kruemmung heisst
- * nicht „unbekannt", sondern **gerade**. Eine gebogene Wand kam nach einem
- * Round-Trip durch MultiCam als Strecke zurueck.
+ * Gekruemmte Waende (`cx`/`cy`) gehoeren inzwischen zum eigenen Wall-Modell.
+ * `ForeignWallFields` behaelt die alten Felder nur, damit native Dateien aus
+ * der Uebergangszeit weiter exportieren; neu aufgehoben wird nur reflectance.
  */
 /**
  * ADR-005 — Personen-Felder, die MultiCam nicht modelliert.
@@ -113,6 +110,7 @@ export interface ForeignPersonFields {
 }
 
 export interface ForeignWallFields {
+  /** Kept for native projects written before curve control became first-class. */
   cx?: number;
   cy?: number;
   reflectance?: number;
@@ -182,7 +180,7 @@ export function toVenueExchange(input: MultiCamVenueInput): VenueExchange {
         const f = personForeign[p.id];
         return {
           id: p.id, x: p.x, y: p.y, height: p.height, label: p.label,
-          width: p.width, objectType: p.objectType, color: p.color, rotationDeg: p.rotationDeg,
+          width: p.width, depth: p.depth, objectType: p.objectType, color: p.color, rotationDeg: p.rotationDeg,
           ...(f?.pose !== undefined ? { pose: f.pose } : {}),
           ...(f?.facing !== undefined ? { facing: f.facing } : {}),
         };
@@ -201,8 +199,8 @@ export function toVenueExchange(input: MultiCamVenueInput): VenueExchange {
           // dieselbe Tuer an dieselbe Stelle.
           ...(w.thicknessM !== undefined ? { thickness: w.thicknessM } : {}),
           ...(w.openings?.length ? { openings: w.openings } : {}),
-          ...(f?.cx !== undefined ? { cx: f.cx } : {}),
-          ...(f?.cy !== undefined ? { cy: f.cy } : {}),
+          ...(w.cx !== undefined ? { cx: w.cx } : f?.cx !== undefined ? { cx: f.cx } : {}),
+          ...(w.cy !== undefined ? { cy: w.cy } : f?.cy !== undefined ? { cy: f.cy } : {}),
           ...(f?.reflectance !== undefined ? { reflectance: f.reflectance } : {}),
         };
       }),
@@ -249,6 +247,11 @@ export interface MultiCamVenueResult {
   venueDimsInFile: boolean;
 }
 
+/** Local forward-compatible extension. The vendored v1 schema is immutable in
+ * this repository (ADR-015); JSON consumers that preserve unknown properties
+ * can still round-trip a table footprint depth until the suite schema adds it. */
+type VenueExchangePersonWithDepth = VenueExchangePerson & { depth?: number };
+
 function floorPlanToBg(fp: VenueExchangeFloorPlan): BackgroundPlan {
   return {
     dataUrl: fp.src,
@@ -281,13 +284,19 @@ export function fromVenueExchange(ex: VenueExchange): MultiCamVenueResult {
         height: s.depth ?? s.height ?? 1, label: s.label ?? '',
       })),
     },
-    persons: (v.persons ?? []).map((p) => ({
-      id: p.id, x: p.x, y: p.y, height: p.height, width: p.width ?? 0.5,
-      label: p.label, objectType: (p.objectType as StageObjectType) ?? 'person', color: p.color,
-      rotationDeg: Number.isFinite(p.rotationDeg) ? p.rotationDeg : undefined,
-    })),
+    persons: (v.persons ?? []).map((p) => {
+      const depth = (p as VenueExchangePersonWithDepth).depth;
+      return {
+        id: p.id, x: p.x, y: p.y, height: p.height, width: p.width ?? 0.5,
+        ...(typeof depth === 'number' ? { depth } : {}),
+        label: p.label, objectType: (p.objectType as StageObjectType) ?? 'person', color: p.color,
+        rotationDeg: Number.isFinite(p.rotationDeg) ? p.rotationDeg : undefined,
+      };
+    }),
     walls: (v.walls ?? []).map((w) => ({
       id: w.id, x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2, height: w.height, label: w.label ?? '',
+      ...(typeof w.cx === 'number' ? { cx: w.cx } : {}),
+      ...(typeof w.cy === 'number' ? { cy: w.cy } : {}),
       ...(w.color !== undefined ? { color: w.color } : {}),
       ...(typeof w.thickness === 'number' ? { thicknessM: w.thickness } : {}),
       ...(w.openings?.length ? { openings: w.openings } : {}),
@@ -318,16 +327,14 @@ function collectPersonForeign(
   return out;
 }
 
-/** Hebt je Wand auf, was MultiCam nicht modelliert. Eine gerade Wand ohne
- *  Reflexionsgrad bekommt keinen Eintrag. */
+/** Preserve wall fields still not modelled by MultiCam. Curve control now
+ *  belongs to Wall itself; legacy native projects may still carry it here. */
 function collectWallForeign(
   walls: VenueExchangeWall[],
 ): Record<string, ForeignWallFields> {
   const out: Record<string, ForeignWallFields> = {};
   for (const w of walls) {
     const f: ForeignWallFields = {};
-    if (typeof w.cx === 'number') f.cx = w.cx;
-    if (typeof w.cy === 'number') f.cy = w.cy;
     if (typeof w.reflectance === 'number') f.reflectance = w.reflectance;
     if (Object.keys(f).length > 0) out[w.id] = f;
   }

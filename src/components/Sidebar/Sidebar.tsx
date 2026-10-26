@@ -36,6 +36,7 @@ import { rigYaw } from '../../utils/camera';
 import { defaultWallHeight } from '../../utils/wallHeight';
 import { WallHeightField } from './WallHeightField';
 import { DEFAULT_PATTERN_ROWS, PATTERN_ROWS_MAX, PATTERN_ROWS_MIN } from '../../utils/wallSurface';
+import { defaultWallControlPoint, wallIsCurved } from '../../utils/wallPath';
 import { FieldRow, Group, Note, Readout, ValueSlider } from './fields';
 import Regler from '../ui/Regler';
 // Derselbe Objektiv-Regler wie im Preview-Tab: logarithmische Bahn, Rastung,
@@ -2157,6 +2158,7 @@ export default function Sidebar() {
   const [wallsOpen, setWallsOpen] = useState(false);
   const [bgOpen, setBgOpen] = useState(false);
   const [wallDrawMode, setWallDrawMode] = useState(false);
+  const [wallCurveMode, setWallCurveMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [calibAxis, setCalibAxis] = useState<'x' | 'y' | null>(null);
   const [calibDistX, setCalibDistX] = useState(10);
@@ -2206,8 +2208,8 @@ export default function Sidebar() {
   }, []);
 
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('multicam-wall-draw', { detail: { active: wallDrawMode } }));
-  }, [wallDrawMode]);
+    window.dispatchEvent(new CustomEvent('multicam-wall-draw', { detail: { active: wallDrawMode, curved: wallCurveMode } }));
+  }, [wallCurveMode, wallDrawMode]);
 
   return (
     // Breite kommt vom Container in App.tsx (fluid); hier nur noch fuellen —
@@ -2576,15 +2578,30 @@ export default function Sidebar() {
                 onChange={(v) => v !== undefined && setVenue({ ...venue, defaultWallHeightM: v })}
               />
             </label>
-            <button
-              onClick={() => setWallDrawMode((active) => !active)}
-              className={`flex items-center gap-1 px-2 py-1 text-xs w-full justify-center ${wallDrawMode ? 'bg-bc-yellow/20 text-bc-yellow-text hover:bg-bc-yellow/30' : 'bg-bc-dark text-bc-text hover:text-bc-text-bright border border-bc-border'}`}
-            >
-              {wallDrawMode ? t('sidebar.stopDrawing', 'Stop drawing') : t('sidebar.drawWalls', 'Draw walls')}
-            </button>
+            <div className="grid grid-cols-2 gap-1">
+              {([
+                [false, t('sidebar.drawStraightWall', 'Straight wall')],
+                [true, t('sidebar.drawCurvedWall', 'Curved wall')],
+              ] as const).map(([curved, label]) => {
+                const active = wallDrawMode && wallCurveMode === curved;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => { setWallCurveMode(curved); setWallDrawMode(!active); }}
+                    className={`flex items-center justify-center px-2 py-1 text-xs ${active ? 'bg-bc-yellow/20 text-bc-yellow-text hover:bg-bc-yellow/30' : 'bg-bc-dark text-bc-text hover:text-bc-text-bright border border-bc-border'}`}
+                  >
+                    {active ? t('sidebar.stopDrawing', 'Stop drawing') : label}
+                  </button>
+                );
+              })}
+            </div>
             {wallDrawMode && (
               <div className="border border-bc-border bg-bc-panel-raised px-2 py-1.5 text-[10px] text-bc-muted leading-relaxed">
-                {t('sidebar.wallDrawHelp', 'Click once to place the start point, click again to finish the wall. Hold Shift to snap the angle. Right-click a wall to delete it.')}
+                {wallCurveMode
+                  ? t('sidebar.curvedWallDrawHelp', 'Click the two endpoints. The wall starts with a visible curve; select it and drag the centre handle to reshape it.')
+                  : t('sidebar.wallDrawHelp', 'Click once to place the start point, click again to finish the wall. Hold Shift to snap the angle. Right-click a wall to delete it.')}
               </div>
             )}
             {/* Endpoint snapping toggle (issue #40) */}
@@ -2613,6 +2630,19 @@ export default function Sidebar() {
                     onChange={(v) => updateWall(w.id, { height: v })}
                   />
                   <span className="text-bc-dim text-[10px]">{lengthUnit(units)}</span>
+                  <button
+                    type="button"
+                    className="px-1.5 py-0.5 border border-bc-border text-[10px] text-bc-muted hover:text-bc-accent hover:border-bc-accent"
+                    onClick={() => {
+                      if (wallIsCurved(w)) updateWall(w.id, { cx: undefined, cy: undefined });
+                      else {
+                        const control = defaultWallControlPoint(w);
+                        updateWall(w.id, { cx: control.x, cy: control.y });
+                      }
+                    }}
+                  >
+                    {wallIsCurved(w) ? t('sidebar.wallStraighten', 'Straighten') : t('sidebar.wallCurve', 'Curve')}
+                  </button>
                   <button onClick={() => removeWall(w.id)} className="ml-auto p-0.5 hover:text-bc-red-text"><FiTrash2 size={11} /></button>
                 </div>
                 {/* Surface pattern for blur-checking in the preview (issue #45) */}
@@ -2736,22 +2766,41 @@ export default function Sidebar() {
                 p.objectType === 'schneetiger' ? '🐅' :
                 p.objectType === 'custom' ? '◇' : '👤';
               return (
-                <div key={p.id} className="flex items-center gap-2 bg-bc-dark p-1.5 border border-bc-border">
-                  <span className="text-bc-dim text-[10px] w-6 text-center">{icon}</span>
-                  <input className="bg-transparent text-bc-text-bright text-xs w-16 outline-none" value={p.label}
-                    onChange={(e) => updatePerson(p.id, { label: e.target.value })} />
-                  <label>Angle °<input aria-label={`${p.label} angle`} type="number" step="0.1" value={p.rotationDeg ?? ''} placeholder="Auto" className="w-16 bg-bc-panel" onChange={(e) => updatePerson(p.id, { rotationDeg: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
-                  <LengthInput aria-label={`${p.label} height`} value={p.height} onChange={(height) => updatePerson(p.id, { height })} />
-                  <LengthInput aria-label={`${p.label} width`} value={p.width} onChange={(width) => updatePerson(p.id, { width })} />
-                  <input
-                    type="color"
-                    className="w-5 h-5 border border-bc-border cursor-pointer bg-transparent"
-                    value={p.color ?? (OBJECT_PRESETS[p.objectType]?.color ?? '#f59e0b')}
-                    onChange={(e) => updatePerson(p.id, { color: e.target.value })}
-                    title={t('sidebar.customAccentColour', 'Custom accent colour')}
-                  />
-                  <span className="text-bc-dim">({formatLength(p.x, units)}, {formatLength(p.y, units)} {lengthUnit(units)})</span>
-                  <button onClick={() => removePerson(p.id)} className="ml-auto p-0.5 hover:text-bc-red-text"><FiTrash2 size={11} /></button>
+                <div key={p.id} className="space-y-1.5 bg-bc-dark p-1.5 border border-bc-border">
+                  <div className="flex items-center gap-2">
+                    <span className="text-bc-dim text-[10px] w-6 text-center">{icon}</span>
+                    <input className="min-w-0 flex-1 bg-transparent text-bc-text-bright text-xs outline-none" value={p.label}
+                      onChange={(e) => updatePerson(p.id, { label: e.target.value })} />
+                    <label className="flex items-center gap-1 text-[10px] text-bc-muted">
+                      {t('sidebar.objectAngle', 'Angle')} °
+                      <input aria-label={`${p.label} angle`} type="number" step="0.1" value={p.rotationDeg ?? ''} placeholder={t('sidebar.objectAngleAuto', 'Auto')} className="w-14 bg-bc-panel px-1 py-0.5 text-bc-text-bright" onChange={(e) => updatePerson(p.id, { rotationDeg: e.target.value === '' ? undefined : Number(e.target.value) })} />
+                    </label>
+                    <input
+                      type="color"
+                      className="w-5 h-5 border border-bc-border cursor-pointer bg-transparent"
+                      value={p.color ?? (OBJECT_PRESETS[p.objectType]?.color ?? '#f59e0b')}
+                      onChange={(e) => updatePerson(p.id, { color: e.target.value })}
+                      title={t('sidebar.customAccentColour', 'Custom accent colour')}
+                    />
+                    <button onClick={() => removePerson(p.id)} className="p-0.5 hover:text-bc-red-text"><FiTrash2 size={11} /></button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <label className="block text-[10px] text-bc-muted">
+                      {format(t('sidebar.objectHeight', 'Height ({unit})'), { unit: lengthUnit(units) })}
+                      <LengthInput className="w-full border border-bc-border bg-bc-panel px-1 py-0.5 text-bc-text-bright" aria-label={`${p.label} height`} value={p.height} min={0.05} onChange={(height) => updatePerson(p.id, { height })} />
+                    </label>
+                    <label className="block text-[10px] text-bc-muted">
+                      {format(t('sidebar.objectWidth', 'Width ({unit})'), { unit: lengthUnit(units) })}
+                      <LengthInput className="w-full border border-bc-border bg-bc-panel px-1 py-0.5 text-bc-text-bright" aria-label={`${p.label} width`} value={p.width} min={0.05} onChange={(width) => updatePerson(p.id, { width })} />
+                    </label>
+                    {p.objectType === 'table' && (
+                      <label className="block text-[10px] text-bc-muted">
+                        {format(t('sidebar.objectLength', 'Length ({unit})'), { unit: lengthUnit(units) })}
+                        <LengthInput className="w-full border border-bc-border bg-bc-panel px-1 py-0.5 text-bc-text-bright" aria-label={`${p.label} length`} value={p.depth ?? p.width * 2 / 3} min={0.05} onChange={(depth) => updatePerson(p.id, { depth })} />
+                      </label>
+                    )}
+                  </div>
+                  <span className="block text-[10px] text-bc-dim">({formatLengthWithUnit(p.x, units)}, {formatLengthWithUnit(p.y, units)})</span>
                 </div>
               );
             })}

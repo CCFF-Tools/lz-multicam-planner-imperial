@@ -1,5 +1,6 @@
 import type { VenueCamera } from '../../types';
 import { mountTypeLabel } from '../../i18n/mount';
+import { formatLengthWithUnit, type Units } from '../../utils/units';
 
 /** Zweite Zeile eines Listeneintrags: Kamera · Brennweitenbereich @ aktuell · Rig. */
 export function cameraRowDetail(
@@ -7,6 +8,7 @@ export function cameraRowDetail(
   cam: VenueCamera,
   camName: string | null,
   lens: { focalLengthMin: number; focalLengthMax: number } | null,
+  units: Units,
 ): string {
   const parts: string[] = [];
   if (camName) parts.push(camName);
@@ -16,6 +18,7 @@ export function cameraRowDetail(
       : `${lens.focalLengthMin}–${lens.focalLengthMax} mm`;
     parts.push(`${range} @ ${Math.round(cam.focalLength * 10) / 10} mm`);
   }
+  parts.push(`${t('venue.list.focus', 'Focus')} ${formatLengthWithUnit(cam.focusDistance, units)}`);
   if (cam.mountType) parts.push(mountTypeLabel(t, cam.mountType));
   return parts.join(' · ');
 }

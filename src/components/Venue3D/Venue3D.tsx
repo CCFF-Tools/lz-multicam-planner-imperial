@@ -984,6 +984,7 @@ function cameraFov(cam: ReturnType<typeof useStore.getState>['cameras'][0]) {
 
 export default function Venue3D() {
   const { t } = useTranslation();
+  const units = useUnits((s) => s.units);
   const { venue, cameras, persons, backgroundPlan, updatePerson, selectCamera, selectedCameraId, programCameraId } = useStore();
   const [unlockedCameraId, setUnlockedCameraId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState<CameraEditMode>('move');
@@ -1049,10 +1050,10 @@ export default function Venue3D() {
     return {
       cam,
       number: i + 1,
-      detail: cameraRowDetail(t, cam, camName, info?.lensDef ?? null),
+      detail: cameraRowDetail(t, cam, camName, info?.lensDef ?? null, units),
       hFovDeg: info?.fov?.horizontalDeg ?? null,
     };
-  }), [cameras, fovById, t]);
+  }), [cameras, fovById, t, units]);
 
   // Einfache Ansicht (#167): ohne Pipeline, Schatten und Showlicht.
   const simple = prefs.quality === 'simple';
