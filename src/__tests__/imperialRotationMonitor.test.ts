@@ -48,6 +48,24 @@ describe('venue compatibility', () => {
     expect(videowandNormal({ ...wall, displayType: undefined }).displayType).toBe('led-wall');
     expect(videowandNormal({ ...wall, rotationDeg: -397.5 }).rotationDeg).toBe(322.5);
   });
+  it('uses an explicit monitor centre height while preserving legacy lower-edge files', () => {
+    const wall = venue.videoWalls![0];
+    const legacy = videowandNormal(wall);
+    expect(legacy.bottomM).toBe(1.5);
+    expect(legacy.mountingHeightM).toBeCloseTo(1.8375);
+
+    const mounted = videowandNormal({ ...wall, mountingHeightM: 2.1 });
+    expect(mounted.mountingHeightM).toBe(2.1);
+    expect(mounted.bottomM).toBeCloseTo(2.1 - wall.heightM / 2);
+  });
+  it('round-trips the monitor mounting height through venue exchange', () => {
+    const withMountingHeight: Venue = {
+      ...venue,
+      videoWalls: [{ ...venue.videoWalls![0], mountingHeightM: 2.25 }],
+    };
+    const result = fromVenueExchange(JSON.parse(JSON.stringify(toVenueExchange({ venue: withMountingHeight, persons: [], walls: [], backgroundPlan: null, appVersion: '4.9.0', exportedAt: '2026-10-26T00:00:00Z' }))));
+    expect(result.venue.videoWalls?.[0].mountingHeightM).toBe(2.25);
+  });
 });
 
 it('uses shared scene orientation while preserving automatic facing', () => {
@@ -58,7 +76,7 @@ it('uses shared scene orientation while preserving automatic facing', () => {
 });
 it('preserves optional fields through native project serialization', () => {
   const person: ReferencePerson = { id: 'p', x: 2, y: 3, height: 0.75, width: 1.2, depth: 0.8, label: 'Table', objectType: 'table', rotationDeg: 123.4 };
-  const venue: Venue = { name: 'V', widthM: 20, heightM: 10, stages: [], videoWalls: [{ id: 'm', x: 1, y: 2, widthM: 1.2, heightM: 0.7, displayType: 'monitor', rotationDeg: 45 }] };
+  const venue: Venue = { name: 'V', widthM: 20, heightM: 10, stages: [], videoWalls: [{ id: 'm', x: 1, y: 2, widthM: 1.2, heightM: 0.7, displayType: 'monitor', mountingHeightM: 2, rotationDeg: 45 }] };
   const file = buildProjectFile({ projectVersion: 1, venue, persons: [person], cameras: [], walls: [], backgroundPlan: null, avForeign: {}, stageForeign: {}, floorPlanForeign: {}, wallForeign: {}, personForeign: {} });
   const restored = JSON.parse(JSON.stringify(file));
   expect(restored.persons[0]).toEqual(person);

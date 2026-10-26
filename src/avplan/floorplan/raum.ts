@@ -56,6 +56,12 @@ export interface VenueVideoWall {
   heightM: number
   /** Unterkante ueber dem Boden. */
   bottomM?: number
+  /**
+   * Montagehoehe der Bildschirmmitte. Monitore verwenden diesen Wert, wenn
+   * er gesetzt ist; `bottomM` bleibt fuer LED-Waende und alte Projekte
+   * erhalten.
+   */
+  mountingHeightM?: number
   rotationDeg?: number
 }
 
@@ -106,15 +112,26 @@ export function sitzblockNormal(b: VenueSeatingBlock): Required<Omit<VenueSeatin
 }
 
 export function videowandNormal(w: VenueVideoWall): Required<Omit<VenueVideoWall, 'label'>> & { label: string } {
+  const displayType = w.displayType === 'monitor' ? 'monitor' : 'led-wall'
+  const heightM = zahl(w.heightM, 3.375, 0.2, 200)
+  const legacyBottomM = zahl(w.bottomM, 1, 0, 200)
+  const mountingHeightM = displayType === 'monitor'
+    ? zahl(w.mountingHeightM, legacyBottomM + heightM / 2, heightM / 2, 200 + heightM / 2)
+    : legacyBottomM + heightM / 2
   return {
     id: w.id,
     label: w.label ?? '',
     x: zahl(w.x, 0, -1e4, 1e4),
     y: zahl(w.y, 0, -1e4, 1e4),
-    displayType: w.displayType === 'monitor' ? 'monitor' : 'led-wall',
+    displayType,
     widthM: zahl(w.widthM, 6, 0.2, 400),
-    heightM: zahl(w.heightM, 3.375, 0.2, 200),
-    bottomM: zahl(w.bottomM, 1, 0, 200),
+    heightM,
+    // A monitor's explicit mounting elevation is its centre. Older monitor
+    // files only have bottomM, so their rendered position remains unchanged.
+    bottomM: displayType === 'monitor' && typeof w.mountingHeightM === 'number' && Number.isFinite(w.mountingHeightM)
+      ? Math.max(0, mountingHeightM - heightM / 2)
+      : legacyBottomM,
+    mountingHeightM,
     rotationDeg: winkel(w.rotationDeg),
   }
 }

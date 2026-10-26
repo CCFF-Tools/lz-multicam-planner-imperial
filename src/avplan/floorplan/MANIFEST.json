@@ -14,7 +14,7 @@
     "planDatei.ts": "df566f0be01b69e3f9f88dd1677f90a087c2ee543d03485491d6922766536106",
     "planErkennung.ts": "5c0e7c04b665eda32047c5e876aa608d52db230fe0c9f86bc95207598e9a991e",
     "planUebernahme.ts": "6aa11bfc42316baf9bbff8b1f1172870a593ed9dec3fc91d3f3bc9b949fbb4e6",
-    "raum.ts": "b17bb8e0ce154982fb8a5a79af5598ed9eb425afb20e26d1e1ff89cbf4d57793",
+    "raum.ts": "b4878b4d88c0875b23215829fddfbace3aef0da78167d45fb20705a96b78bd33",
     "streckenIndex.ts": "a83a9b9fc7c3c492e803ffd02c5d5908fc3968cedd9fa02d3eee6f7e7cf62a9c",
     "typen.ts": "9f705653b1bc6d4a6a9e26da6dfbf85fd7c86e0b6e4bd8a3e5e312906c5175bc",
     "vektor.ts": "244968ca1686479440378340b778633a1b6a57173e31c16319992f8562d8516d",
@@ -23,7 +23,7 @@
   },
   "fork": {
     "repository": "CCFF-Tools/lz-multicam-planner-imperial",
-    "reason": "Optional object rotation and monitor display type; upstream files extended for this private fork. Preserve these extensions when redistributing upstream packages.",
+    "reason": "Optional object rotation, monitor display type, and monitor mounting elevation; upstream files extended for this private fork. Preserve these extensions when redistributing upstream packages.",
     "upstreamDigests": {
       "raum.ts": "94db4de18b2151e54e8bde4bbba3bba13af0302e5bd193ca4ceb01f460fef328",
       "venueExchange.ts": "7393075fa3083383b56df5efeeb9fdbea9bf6e8e2135c7fa5c9348f0f117a492"

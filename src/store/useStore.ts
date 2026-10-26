@@ -568,7 +568,7 @@ export const useStore = create<AppState>((set, get) => ({
     projectVersion: s.projectVersion + 1,
   })),
   addVideoWall: (displayType = 'led-wall') => set((s) => ({
-    venue: { ...s.venue, videoWalls: [...(s.venue.videoWalls ?? []), { ...neueVideowand(s.venue), ...(displayType === 'monitor' ? { displayType, label: 'Monitor', widthM: 1.2176, heightM: 0.6849, bottomM: 1.5 } : {}) }] },
+    venue: { ...s.venue, videoWalls: [...(s.venue.videoWalls ?? []), { ...neueVideowand(s.venue), ...(displayType === 'monitor' ? { displayType, label: 'Monitor', widthM: 1.2176, heightM: 0.6849, mountingHeightM: 1.5 } : {}) }] },
     projectVersion: s.projectVersion + 1,
   })),
   updateVideoWall: (id, updates) => set((s) => ({
