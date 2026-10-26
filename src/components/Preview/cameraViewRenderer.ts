@@ -26,6 +26,7 @@ import { alphaSuffix, shadeHex } from '../../utils/color';
 import { format, translate } from '../../i18n';
 import { useUnits } from '../../store/units';
 import { FEET_PER_METER, formatLengthWithUnit, type Units } from '../../utils/units';
+import { wallPathSegments } from '../../utils/wallPath';
 import {
   DEFAULT_PATTERN_ROWS,
   paintWallSurface,
@@ -468,10 +469,13 @@ export function drawCameraView(args: DrawCameraViewArgs): ProjectedPerson[] | un
   };
 
   walls.forEach((wall) => {
-    const midX = (wall.x1 + wall.x2) / 2;
-    const midY = (wall.y1 + wall.y2) / 2;
-    const dist = worldToScreen(midX, midY, 0).dist;
-    solids.push({ depth: groundDist(midX, midY), draw: () => drawWall(wall, dist) });
+    wallPathSegments(wall).forEach(({ a, b }) => {
+      const segment = { ...wall, x1: a.x, y1: a.y, x2: b.x, y2: b.y, cx: undefined, cy: undefined };
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+      const dist = worldToScreen(midX, midY, 0).dist;
+      solids.push({ depth: groundDist(midX, midY), draw: () => drawWall(segment, dist) });
+    });
   });
 
   solids.sort((a, b) => b.depth - a.depth).forEach((solid) => solid.draw());

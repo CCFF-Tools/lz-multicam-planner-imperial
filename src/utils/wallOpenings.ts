@@ -7,6 +7,7 @@
 // Sturz darüber. Das sind dieselben Box-Geometrien, die die 3D-Ansicht
 // ohnehin zeichnet, und es bleibt richtig, wenn jemand die Wandhöhe ändert.
 import type { Wall } from '../types';
+import { wallPathSegments } from './wallPath';
 
 export interface WandStueck {
   /** Mitte des Quaders in Plan-Metern. */
@@ -32,19 +33,32 @@ export const wandDicke = (w: Pick<Wall, 'thicknessM'>): number =>
  * wie bisher, damit sich an bestehenden Projekten nichts verschiebt.
  */
 export function wandStuecke(w: Wall, hoeheM: number): WandStueck[] {
-  const dx = w.x2 - w.x1;
-  const dy = w.y2 - w.y1;
-  const laenge = Math.hypot(dx, dy);
+  const pfad = wallPathSegments(w);
+  const laenge = pfad.length > 0 ? pfad[pfad.length - 1].toM : 0;
   if (laenge < 1e-6) return [];
-  const winkel = Math.atan2(dy, dx);
-  const mitte = (von: number, bis: number, unten: number, hoch: number): WandStueck => ({
-    x: w.x1 + (dx * (von + bis)) / 2 / laenge,
-    y: w.y1 + (dy * (von + bis)) / 2 / laenge,
-    unten,
-    hoehe: hoch,
-    laenge: bis - von,
-    winkel,
-  });
+  const stueckeImIntervall = (von: number, bis: number, unten: number, hoch: number): WandStueck[] => {
+    const out: WandStueck[] = [];
+    for (const segment of pfad) {
+      const start = Math.max(von, segment.fromM);
+      const end = Math.min(bis, segment.toM);
+      if (end - start < 1e-6) continue;
+      const t0 = (start - segment.fromM) / segment.lengthM;
+      const t1 = (end - segment.fromM) / segment.lengthM;
+      const ax = segment.a.x + (segment.b.x - segment.a.x) * t0;
+      const ay = segment.a.y + (segment.b.y - segment.a.y) * t0;
+      const bx = segment.a.x + (segment.b.x - segment.a.x) * t1;
+      const by = segment.a.y + (segment.b.y - segment.a.y) * t1;
+      out.push({
+        x: (ax + bx) / 2,
+        y: (ay + by) / 2,
+        unten,
+        hoehe: hoch,
+        laenge: Math.hypot(bx - ax, by - ay),
+        winkel: Math.atan2(by - ay, bx - ax),
+      });
+    }
+    return out;
+  };
   const oeffnungen = (w.openings ?? [])
     .map((o) => ({
       von: Math.max(0, Math.min(laenge, o.offset)),
@@ -54,16 +68,16 @@ export function wandStuecke(w: Wall, hoeheM: number): WandStueck[] {
     }))
     .filter((o) => o.bis - o.von > 0.01 && o.oben - o.unten > 0.01)
     .sort((a, b) => a.von - b.von);
-  if (!oeffnungen.length) return [mitte(0, laenge, 0, hoeheM)];
+  if (!oeffnungen.length) return stueckeImIntervall(0, laenge, 0, hoeheM);
 
   const stuecke: WandStueck[] = [];
   let x = 0;
   for (const o of oeffnungen) {
-    if (o.von > x + 0.01) stuecke.push(mitte(x, o.von, 0, hoeheM));
-    if (o.unten > 0.01) stuecke.push(mitte(o.von, o.bis, 0, o.unten));
-    if (hoeheM - o.oben > 0.01) stuecke.push(mitte(o.von, o.bis, o.oben, hoeheM - o.oben));
+    if (o.von > x + 0.01) stuecke.push(...stueckeImIntervall(x, o.von, 0, hoeheM));
+    if (o.unten > 0.01) stuecke.push(...stueckeImIntervall(o.von, o.bis, 0, o.unten));
+    if (hoeheM - o.oben > 0.01) stuecke.push(...stueckeImIntervall(o.von, o.bis, o.oben, hoeheM - o.oben));
     x = Math.max(x, o.bis);
   }
-  if (laenge - x > 0.01) stuecke.push(mitte(x, laenge, 0, hoeheM));
+  if (laenge - x > 0.01) stuecke.push(...stueckeImIntervall(x, laenge, 0, hoeheM));
   return stuecke;
 }

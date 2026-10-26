@@ -219,6 +219,9 @@ export interface Wall {
   id: string;
   x1: number; y1: number; // start point in metres
   x2: number; y2: number; // end point in metres
+  /** Optional quadratic Bezier control point. Both values must be present. */
+  cx?: number;
+  cy?: number;
   /**
    * Own height in metres (#198). Unset = the venue's standard wall height
    * (`Venue.defaultWallHeightM`); read it through `wallHeight()`.
@@ -272,6 +275,8 @@ export interface ReferencePerson {
   y: number; // metres from top
   height: number; // metres
   width: number; // metres (footprint width)
+  /** Optional footprint depth/length in metres; currently editable for tables. */
+  depth?: number;
   label: string;
   objectType: StageObjectType;
   /** Optional custom accent colour (hex). Falls back to type default. */

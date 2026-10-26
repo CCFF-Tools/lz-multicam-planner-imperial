@@ -426,6 +426,16 @@ export const sidebar: Record<string, string> = {
   'sidebar.cam.source.listPh': 'REGIE-PC (CAM 1)\nREGIE-PC (CAM 2)  10.0.0.42',
   'sidebar.libraryStorageFull': 'Speicher voll — die letzte Änderung an der Bibliothek wurde nicht dauerhaft gesichert. Nicht mehr gebrauchte eigene Kameras/Optiken löschen oder das Projekt exportieren.',
   'sidebar.stage.height': 'Höhe',
+  'sidebar.drawStraightWall': 'Gerade Wand',
+  'sidebar.drawCurvedWall': 'Gebogene Wand',
+  'sidebar.curvedWallDrawHelp': 'Die beiden Endpunkte anklicken. Die Wand beginnt mit einer sichtbaren Kurve; danach auswählen und am mittleren Griff formen.',
+  'sidebar.wallStraighten': 'Begradigen',
+  'sidebar.wallCurve': 'Biegen',
+  'sidebar.objectAngle': 'Winkel',
+  'sidebar.objectAngleAuto': 'Auto',
+  'sidebar.objectHeight': 'Höhe ({unit})',
+  'sidebar.objectWidth': 'Breite ({unit})',
+  'sidebar.objectLength': 'Länge ({unit})',
 
   // 2026-09-10 — vom geschaerften Sprachmix-Zaehler gefunden.
   'sidebar.cam.effectiveSensor': 'Wirksamer Sensor: {name} (Crop ×{crop})',

@@ -12,7 +12,7 @@ import { personDarstellung, type PersonDarstellung } from '../../utils/personGes
 import { useUnits } from '../../store/units';
 import { formatLengthWithUnit } from '../../utils/units';
 
-export function PersonMesh({ x, z, height, label, objectType, color, showLabel = true }: { x: number; z: number; height: number; label: string; objectType?: StageObjectType; color?: string; showLabel?: boolean }) {
+export function PersonMesh({ x, z, height, width, depth, label, objectType, color, showLabel = true }: { x: number; z: number; height: number; width?: number; depth?: number; label: string; objectType?: StageObjectType; color?: string; showLabel?: boolean }) {
   const units = useUnits((s) => s.units);
   const type = objectType ?? 'person';
   const defaultColor =
@@ -27,6 +27,8 @@ export function PersonMesh({ x, z, height, label, objectType, color, showLabel =
     type === 'schneetiger' ? '#e0f2fe' :
     '#f59e0b';
   const col = color ?? defaultColor;
+  const tableWidth = Math.max(0.1, width ?? 1.2);
+  const tableDepth = Math.max(0.1, depth ?? tableWidth * 2 / 3);
 
   return (
     <group position={[x, height / 2, z]}>
@@ -80,10 +82,15 @@ export function PersonMesh({ x, z, height, label, objectType, color, showLabel =
       ) : type === 'table' ? (
         <>
           <mesh position={[0, height * 0.35, 0]}>
-            <boxGeometry args={[1.4, 0.06, 0.8]} />
+            <boxGeometry args={[tableWidth, 0.06, tableDepth]} />
             <meshStandardMaterial color={col} opacity={0.8} transparent />
           </mesh>
-          {[[-0.65, -0.35], [0.65, -0.35], [-0.65, 0.35], [0.65, 0.35]].map(([lx, lz], i) => (
+          {[
+            [-tableWidth / 2 + 0.05, -tableDepth / 2 + 0.05],
+            [tableWidth / 2 - 0.05, -tableDepth / 2 + 0.05],
+            [-tableWidth / 2 + 0.05, tableDepth / 2 - 0.05],
+            [tableWidth / 2 - 0.05, tableDepth / 2 - 0.05],
+          ].map(([lx, lz], i) => (
             <mesh key={i} position={[lx, -height * 0.07, lz]}>
               <boxGeometry args={[0.06, height * 0.8, 0.06]} />
               <meshStandardMaterial color="#57534e" />
@@ -216,9 +223,10 @@ export function RealPerson({ id, height, darstellung, color, facingDeg }: { id: 
  * `name` zeigt den Namen ueber dem Menschen, `objektName` den am Objekt.
  */
 export function Figur({ person, facingDeg, name, objektName }: { person: ReferencePerson; facingDeg: number; name: boolean; objektName: boolean }) {
+  const units = useUnits((s) => s.units);
   const darstellung = useMemo(() => personDarstellung(person), [person.id, person.label, person.objectType]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!darstellung) {
-    return <group rotation={[0, objectYaw(person.rotationDeg), 0]}><PersonMesh x={0} z={0} height={person.height} label={person.label} objectType={person.objectType} color={person.color} showLabel={objektName} /></group>;
+    return <group rotation={[0, objectYaw(person.rotationDeg), 0]}><PersonMesh x={0} z={0} height={person.height} width={person.width} depth={person.depth} label={person.label} objectType={person.objectType} color={person.color} showLabel={objektName} /></group>;
   }
   return (
     <>
@@ -226,7 +234,7 @@ export function Figur({ person, facingDeg, name, objektName }: { person: Referen
       {name && (
         <Text font={LABEL_FONT} position={[0, person.height + 0.25, 0]} fontSize={0.22} color={person.color ?? '#f59e0b'} anchorX="center"
           outlineWidth={0.015} outlineColor="#000000">
-          {person.label}
+          {person.label} ({formatLengthWithUnit(person.height, units)})
         </Text>
       )}
     </>

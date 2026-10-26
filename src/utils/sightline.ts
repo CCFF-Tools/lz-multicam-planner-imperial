@@ -36,6 +36,7 @@ import type { ReferencePerson, Stage, VenueCamera, Wall } from '../types';
 import { defaultWallHeight, resolveWallHeights } from './wallHeight';
 import { effectiveCameraPos } from './camera';
 import { formatLengthWithUnit, type Units } from './units';
+import { wallPathSegments } from './wallPath';
 
 /** Ein Punkt im Raum (Meter). */
 export interface Point3 {
@@ -149,9 +150,13 @@ export const sightlineConflicts = (input: SightlineInput): SightlineConflict[] =
 
     // ── Waende ──
     for (const w of resolveWallHeights(input.walls, defaultWallHeight({ defaultWallHeightM: input.defaultWallHeightM }))) {
-      const t = streckenSchnitt(from.x, from.y, to.x, to.y, w.x1, w.y1, w.x2, w.y2);
-      if (t === null) continue;
-      const linie = hoeheBei(from, to, t);
+      let nearest: number | null = null;
+      for (const segment of wallPathSegments(w)) {
+        const t = streckenSchnitt(from.x, from.y, to.x, to.y, segment.a.x, segment.a.y, segment.b.x, segment.b.y);
+        if (t !== null && (nearest === null || t < nearest)) nearest = t;
+      }
+      if (nearest === null) continue;
+      const linie = hoeheBei(from, to, nearest);
       if (linie >= w.height) continue; // Die Linie geht darueber weg.
       out.push({
         cameraId: cam.id,
@@ -160,7 +165,7 @@ export const sightlineConflicts = (input: SightlineInput): SightlineConflict[] =
         obstacleId: w.id,
         obstacleLabel: w.label,
         intrusionM: Number((w.height - linie).toFixed(2)),
-        atDistanceM: Number((laenge * t).toFixed(2)),
+        atDistanceM: Number((laenge * nearest).toFixed(2)),
       });
     }
 
