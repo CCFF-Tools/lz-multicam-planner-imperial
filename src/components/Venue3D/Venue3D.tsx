@@ -1,4 +1,5 @@
 import { useUnits } from '../../store/units';
+import { objectBaseElevation } from '../../utils/ceiling';
 import { formatDimensions, formatLength, formatLengthWithUnit } from '../../utils/units';
 import React from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
@@ -1235,7 +1236,7 @@ export default function Venue3D() {
               z={p.y}
               onDragEnd={(nx, nz) => updatePerson(p.id, { x: nx, y: nz })}
             >
-              <group position={[0, groundHeightAt(venue.stages, p.x, p.y), 0]}>
+              <group position={[0, objectBaseElevation(venue, p, groundHeightAt(venue.stages, p.x, p.y)), 0]}>
                 {/* Menschen sehen in jeder Darstellung gleich aus (#173). */}
                 <Figur person={p} facingDeg={personBlick(p.x, p.y)} name={prefs.labels && !show} objektName />
               </group>

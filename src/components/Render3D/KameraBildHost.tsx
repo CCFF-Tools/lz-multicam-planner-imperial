@@ -22,6 +22,7 @@ import { WEBGL_POWER_PREFERENCE } from '../../utils/gpuInfo';
 import { renderLook, wendeLookAn } from './renderLook';
 import { tiefenschaerfeFuerBild } from '../../utils/tiefenschaerfe';
 import { SzenenGrund } from './SzenenGrund';
+import { objectBaseElevation } from '../../utils/ceiling';
 
 export default function KameraBildHost() {
   const [prefs] = useView3DPrefs();
@@ -198,9 +199,10 @@ function HostSzene() {
         far={far}
         look={look}
         onBelichtung={onBelichtung}
+        cameraView
       />
       {daten.persons.map((p) => (
-        <group key={p.id} position={[p.x, groundHeightAt(daten.venue.stages, p.x, p.y), p.y]}>
+        <group key={p.id} position={[p.x, objectBaseElevation(daten.venue, p, groundHeightAt(daten.venue.stages, p.x, p.y)), p.y]}>
           <Figur person={p} facingDeg={daten.personBlick(p.x, p.y)} name={false} objektName={false} />
         </group>
       ))}

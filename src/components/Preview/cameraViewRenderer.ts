@@ -27,6 +27,7 @@ import { format, translate } from '../../i18n';
 import { useUnits } from '../../store/units';
 import { FEET_PER_METER, formatLengthWithUnit, type Units } from '../../utils/units';
 import { wallPathSegments } from '../../utils/wallPath';
+import { ceilingHeightAt, objectBaseElevation } from '../../utils/ceiling';
 import {
   DEFAULT_PATTERN_ROWS,
   paintWallSurface,
@@ -583,6 +584,25 @@ export function drawCameraView(args: DrawCameraViewArgs): ProjectedPerson[] | un
       ctx.beginPath();
       ctx.ellipse(cx, headY + pxH * 0.05, pxH * 0.04, pxH * 0.06, 0, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
+    } else if (type === 'linear-light') {
+      const c = customColor ?? '#fbbf24';
+      const barW = Math.max(10, pxH * 0.75);
+      const barH = Math.max(2, Math.min(7, pxH * 0.08));
+      ctx.strokeStyle = '#9ca3af';
+      ctx.lineWidth = 1;
+      for (const offset of [-0.35, 0.35]) {
+        ctx.beginPath();
+        ctx.moveTo(cx + barW * offset, headY);
+        ctx.lineTo(cx + barW * offset, feetY - barH);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#171717';
+      ctx.strokeStyle = c;
+      ctx.lineWidth = 1.2;
+      ctx.fillRect(cx - barW / 2, feetY - barH, barW, barH);
+      ctx.strokeRect(cx - barW / 2, feetY - barH, barW, barH);
+      ctx.fillStyle = '#fff7d6';
+      ctx.fillRect(cx - barW * 0.45, feetY - 1.5, barW * 0.9, 1.5);
     } else if (type === 'chair') {
       const c = customColor ?? '#a16207';
       const seatW = pxH * 0.6;
@@ -774,6 +794,7 @@ export function drawCameraView(args: DrawCameraViewArgs): ProjectedPerson[] | un
         type === 'chair' ? '#a16207' :
         type === 'table' ? '#a16207' :
         type === 'lectern' ? '#7c3aed' :
+        type === 'linear-light' ? '#fbbf24' :
         type === 'sitting-person' ? '#38bdf8' :
         type === 'schneetiger' ? '#e0f2fe' :
         '#22c55e'
@@ -799,12 +820,16 @@ export function drawCameraView(args: DrawCameraViewArgs): ProjectedPerson[] | un
     // Steht die Person auf einem Podest, liegen ihre Fuesse auf dessen
     // Oberkante statt auf dem Boden (#73) — sonst steckt sie bis zur Huefte
     // in der Buehne.
-    const feetZ = groundHeightAt(venue.stages, person.x, person.y);
+    const floorZ = groundHeightAt(venue.stages, person.x, person.y);
+    const feetZ = objectBaseElevation(venue, person, floorZ);
     const feetCam = worldToCamera(person.x, person.y, feetZ);
     // Genuinely behind the camera — no chance of being visible
     if (feetCam.z <= 0.001) return;
     totalInFront++;
-    const headCam = worldToCamera(person.x, person.y, feetZ + person.height);
+    const headZ = person.objectType === 'linear-light'
+      ? ceilingHeightAt(venue, person.x, person.y) ?? feetZ + person.height + (person.suspensionDropM ?? 1)
+      : feetZ + person.height;
+    const headCam = worldToCamera(person.x, person.y, headZ);
     const feetProj = cameraToScreen(feetCam);
     const headProj = cameraToScreen(headCam);
 

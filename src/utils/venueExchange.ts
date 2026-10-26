@@ -12,6 +12,7 @@
 // ───────────────────────────────────────────────────────────────────────────
 import type { Venue, ReferencePerson, Wall, BackgroundPlan, StageObjectType } from '../types';
 import { defaultWallHeight, wallHeight } from './wallHeight';
+import { normaliseCeilingZone } from './ceiling';
 // ADR-015 — das Schema (Typen, Konstanten, `parseVenueExchange`) stand bis
 // 2026-09-28 hier im Original und in light-planner als Parallelfassung. Es
 // lebt jetzt in `@avplan/floorplan` (av-planner-suite/packages/floorplan),
@@ -171,6 +172,8 @@ export function toVenueExchange(input: MultiCamVenueInput): VenueExchange {
     exportedAt: input.exportedAt,
     venue: {
       ...raumAus(venue),
+      ...(venue.ceilingMaterial !== undefined ? { ceilingMaterial: venue.ceilingMaterial } : {}),
+      ...(venue.ceilingZones?.length ? { ceilingZones: venue.ceilingZones } : {}),
       name: venue.name,
       widthM: venue.widthM,
       heightM: venue.heightM,
@@ -180,7 +183,7 @@ export function toVenueExchange(input: MultiCamVenueInput): VenueExchange {
         const f = personForeign[p.id];
         return {
           id: p.id, x: p.x, y: p.y, height: p.height, label: p.label,
-          width: p.width, depth: p.depth, objectType: p.objectType, color: p.color, rotationDeg: p.rotationDeg,
+          width: p.width, depth: p.depth, suspensionDropM: p.suspensionDropM, objectType: p.objectType, color: p.color, rotationDeg: p.rotationDeg,
           ...(f?.pose !== undefined ? { pose: f.pose } : {}),
           ...(f?.facing !== undefined ? { facing: f.facing } : {}),
         };
@@ -250,7 +253,8 @@ export interface MultiCamVenueResult {
 /** Local forward-compatible extension. The vendored v1 schema is immutable in
  * this repository (ADR-015); JSON consumers that preserve unknown properties
  * can still round-trip a table footprint depth until the suite schema adds it. */
-type VenueExchangePersonWithDepth = VenueExchangePerson & { depth?: number };
+type VenueExchangePersonWithLocalDimensions = VenueExchangePerson & { depth?: number; suspensionDropM?: number };
+type VenueExchangeRoomWithCeilings = VenueExchange['venue'] & Pick<Venue, 'ceilingMaterial' | 'ceilingZones'>;
 
 function floorPlanToBg(fp: VenueExchangeFloorPlan): BackgroundPlan {
   return {
@@ -269,9 +273,14 @@ function floorPlanToBg(fp: VenueExchangeFloorPlan): BackgroundPlan {
 /** Neutrales Austauschformat → MultiCam-Venue (Kamera-Layer bleibt unberuehrt). */
 export function fromVenueExchange(ex: VenueExchange): MultiCamVenueResult {
   const v = ex.venue;
+  const localRoom = v as VenueExchangeRoomWithCeilings;
   return {
     venue: {
       ...raumAus(v),
+      ...(localRoom.ceilingMaterial === 'drop-tile' || localRoom.ceilingMaterial === 'drywall' ? { ceilingMaterial: localRoom.ceilingMaterial } : {}),
+      ...(Array.isArray(localRoom.ceilingZones)
+        ? { ceilingZones: localRoom.ceilingZones.filter((zone) => zone && typeof zone.id === 'string').map(normaliseCeilingZone) }
+        : {}),
       name: v.name || 'Venue',
       // Die 20x12 sind eine NOTLOESUNG fuer den Fall, dass gar kein Bestand
       // da ist — nicht die Aussage der Datei. `venueDimsInFile` unten sagt,
@@ -285,10 +294,11 @@ export function fromVenueExchange(ex: VenueExchange): MultiCamVenueResult {
       })),
     },
     persons: (v.persons ?? []).map((p) => {
-      const depth = (p as VenueExchangePersonWithDepth).depth;
+      const local = p as VenueExchangePersonWithLocalDimensions;
       return {
         id: p.id, x: p.x, y: p.y, height: p.height, width: p.width ?? 0.5,
-        ...(typeof depth === 'number' ? { depth } : {}),
+        ...(typeof local.depth === 'number' ? { depth: local.depth } : {}),
+        ...(typeof local.suspensionDropM === 'number' ? { suspensionDropM: local.suspensionDropM } : {}),
         label: p.label, objectType: (p.objectType as StageObjectType) ?? 'person', color: p.color,
         rotationDeg: Number.isFinite(p.rotationDeg) ? p.rotationDeg : undefined,
       };

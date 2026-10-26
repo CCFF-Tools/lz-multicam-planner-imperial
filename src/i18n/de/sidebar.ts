@@ -436,6 +436,9 @@ export const sidebar: Record<string, string> = {
   'sidebar.objectHeight': 'Höhe ({unit})',
   'sidebar.objectWidth': 'Breite ({unit})',
   'sidebar.objectLength': 'Länge ({unit})',
+  'sidebar.objectFixtureHeight': 'Leuchtenhöhe ({unit})',
+  'sidebar.objectSuspensionDrop': 'Seilabhängung ({unit})',
+  'sidebar.objLinearLight': 'Linienleuchte',
 
   // 2026-09-10 — vom geschaerften Sprachmix-Zaehler gefunden.
   'sidebar.cam.effectiveSensor': 'Wirksamer Sensor: {name} (Crop ×{crop})',

@@ -488,7 +488,7 @@ function personUid(): string {
 // Object type presets: dimensions in metres plus the default label.
 // Per-object defaults shared with the renderers in Venue2D / Venue3D / Preview.
 // `color` is the accent fall-back when ReferencePerson.color is unset.
-export const OBJECT_PRESETS: Record<string, { height: number; width: number; depth?: number; label: string; color: string }> = {
+export const OBJECT_PRESETS: Record<string, { height: number; width: number; depth?: number; suspensionDropM?: number; label: string; color: string }> = {
   'person':          { height: 1.8,  width: 0.5,  label: 'Person',     color: '#22c55e' },
   'person-guitar':   { height: 1.8,  width: 0.8,  label: 'Guitarist',  color: '#f97316' },
   'sitting-person':  { height: 1.3,  width: 0.6,  label: 'Seated',     color: '#38bdf8' },
@@ -498,6 +498,7 @@ export const OBJECT_PRESETS: Record<string, { height: number; width: number; dep
   'chair':           { height: 0.9,  width: 0.5,  label: 'Chair',      color: '#a16207' },
   'table':           { height: 0.75, width: 1.2,  depth: 0.8, label: 'Table', color: '#a16207' },
   'lectern':         { height: 1.2,  width: 0.7,  label: 'Lectern',    color: '#7c3aed' },
+  'linear-light':    { height: 0.08, width: 0.08, depth: 1.2, suspensionDropM: 1, label: 'Linear Light', color: '#fbbf24' },
   'schneetiger':     { height: 1.1,  width: 1.8,  label: 'Schneetiger', color: '#e0f2fe' },
   'custom':          { height: 1.0,  width: 0.5,  label: 'Object',     color: '#f59e0b' },
 };
@@ -612,6 +613,7 @@ export const useStore = create<AppState>((set, get) => ({
         height: preset.height,
         width: preset.width,
         ...(preset.depth !== undefined ? { depth: preset.depth } : {}),
+        ...(preset.suspensionDropM !== undefined ? { suspensionDropM: preset.suspensionDropM } : {}),
         label: `${preset.label} ${count + 1}`,
         objectType,
       };

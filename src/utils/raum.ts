@@ -7,8 +7,9 @@ import type { Stage, Venue } from '../types';
 import { stageTopZ } from './stageBody';
 import { showLichtAus } from './showRig';
 import { audienceSeats, type AudienceInput } from './view3dScene';
+import { normaliseCeilingZone } from './ceiling';
 
-const RAUM_SCHLUESSEL = ['ceilingHeightM', 'floorMaterial', 'wallMaterial', 'seatingBlocks', 'videoWalls'] as const;
+const RAUM_SCHLUESSEL = ['ceilingHeightM', 'ceilingMaterial', 'ceilingZones', 'floorMaterial', 'wallMaterial', 'seatingBlocks', 'videoWalls'] as const;
 
 /**
  * Venue aus einer Projektdatei: bekannte Felder wie gelesen, Raum-Felder nur,
@@ -19,7 +20,17 @@ export function venueAusDatei(roh: Venue, stages: Stage[]): Venue {
   const basis: Record<string, unknown> = { ...roh };
   for (const k of RAUM_SCHLUESSEL) delete basis[k];
   delete basis.showLight;
-  const v: Venue = { ...(basis as unknown as Venue), stages, ...raumAus(roh) };
+  const ceilingMaterial = roh.ceilingMaterial === 'drop-tile' || roh.ceilingMaterial === 'drywall' ? roh.ceilingMaterial : undefined;
+  const ceilingZones = Array.isArray(roh.ceilingZones)
+    ? roh.ceilingZones.filter((zone) => zone && typeof zone.id === 'string').map(normaliseCeilingZone)
+    : [];
+  const v: Venue = {
+    ...(basis as unknown as Venue),
+    stages,
+    ...raumAus(roh),
+    ...(ceilingMaterial ? { ceilingMaterial } : {}),
+    ...(ceilingZones.length > 0 ? { ceilingZones } : {}),
+  };
   // Showlicht nur, wenn die Datei eines hat — sonst gelten die Standards.
   if (roh.showLight && typeof roh.showLight === 'object') v.showLight = showLichtAus(roh.showLight);
   return v;

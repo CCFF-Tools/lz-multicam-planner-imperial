@@ -13,12 +13,13 @@ import { PLANUNGS_BODEN } from './planungsLook';
 import { wendeLookAn, type RenderLook } from '../Render3D/renderLook';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import type { Stage, Venue, VenueCamera } from '../../types';
+import type { CeilingMaterial, CeilingZone, Stage, Venue, VenueCamera } from '../../types';
 import { stageTopZ } from '../../utils/stageBody';
 import { coverageWedge } from '../../utils/view3dScene';
 import { publikumsBild } from '../../utils/raum';
 import { showLichtAus, showRig } from '../../utils/showRig';
 import { videowandNormal, type RaumBoden, type RaumWand, type VenueVideoWall } from '../../avplan/floorplan';
+import { DEFAULT_CEILING_MATERIAL, normaliseCeilingZone } from '../../utils/ceiling';
 import {
   HINTERGRUENDE,
   SZENEN_ZEIT,
@@ -114,7 +115,112 @@ export function Atmosphere({ look, diagM, domeRadius, hintergrund }: { look: Hin
 }
 
 /* ── Halle: Boden, Waende, Decke ── */
-export function Arena({ venue, show, offen = false, planungsBoden = PLANUNGS_BODEN.dunkel }: { venue: Venue; show: boolean; offen?: boolean; planungsBoden?: string }) {
+function ceilingSurfaceMaterial(material: CeilingMaterial, widthM: number, depthM: number): THREE.MeshStandardMaterial {
+  if (typeof document === 'undefined') {
+    return new THREE.MeshStandardMaterial({ color: material === 'drop-tile' ? '#d9d8d1' : '#ece9e2', roughness: 0.95, side: THREE.FrontSide });
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return new THREE.MeshStandardMaterial({ color: '#e8e5de', roughness: 0.95, side: THREE.FrontSide });
+  if (material === 'drop-tile') {
+    ctx.fillStyle = '#d9d8d1';
+    ctx.fillRect(0, 0, 128, 128);
+    ctx.strokeStyle = '#8b8b86';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(1, 1, 126, 126);
+    ctx.strokeStyle = '#eeeeea';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(5, 5, 118, 118);
+  } else {
+    ctx.fillStyle = '#ece9e2';
+    ctx.fillRect(0, 0, 128, 128);
+    // Deterministic fine speckle gives drywall enough texture for focus checks.
+    for (let i = 0; i < 260; i += 1) {
+      const x = (i * 47) % 128;
+      const y = (i * 83) % 128;
+      ctx.fillStyle = i % 3 === 0 ? '#d8d4cc55' : '#ffffff44';
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  const moduleM = material === 'drop-tile' ? 0.6 : 1.5;
+  texture.repeat.set(Math.max(1, widthM / moduleM), Math.max(1, depthM / moduleM));
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return new THREE.MeshStandardMaterial({ map: texture, color: '#ffffff', roughness: 0.96, side: THREE.FrontSide });
+}
+
+function clippedCeilingZones(zones: CeilingZone[], widthM: number, depthM: number): CeilingZone[] {
+  return zones.map(normaliseCeilingZone).map((zone) => {
+    const left = Math.max(0, zone.x - zone.widthM / 2);
+    const right = Math.min(widthM, zone.x + zone.widthM / 2);
+    const top = Math.max(0, zone.y - zone.depthM / 2);
+    const bottom = Math.min(depthM, zone.y + zone.depthM / 2);
+    return { ...zone, x: (left + right) / 2, y: (top + bottom) / 2, widthM: Math.max(0, right - left), depthM: Math.max(0, bottom - top) };
+  }).filter((zone) => zone.widthM > 0.01 && zone.depthM > 0.01);
+}
+
+function ceilingGroup(widthM: number, depthM: number, baseHeightM: number | undefined, baseMaterial: CeilingMaterial, rawZones: CeilingZone[]): THREE.Group {
+  const group = new THREE.Group();
+  const zones = clippedCeilingZones(rawZones, widthM, depthM);
+  if (baseHeightM !== undefined) {
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0);
+    shape.lineTo(widthM, 0);
+    shape.lineTo(widthM, depthM);
+    shape.lineTo(0, depthM);
+    shape.closePath();
+    for (const zone of zones) {
+      const left = zone.x - zone.widthM / 2;
+      const right = zone.x + zone.widthM / 2;
+      const top = zone.y - zone.depthM / 2;
+      const bottom = zone.y + zone.depthM / 2;
+      const hole = new THREE.Path();
+      hole.moveTo(left, top);
+      hole.lineTo(left, bottom);
+      hole.lineTo(right, bottom);
+      hole.lineTo(right, top);
+      hole.closePath();
+      shape.holes.push(hole);
+    }
+    const base = new THREE.Mesh(new THREE.ShapeGeometry(shape), ceilingSurfaceMaterial(baseMaterial, widthM, depthM));
+    base.rotation.x = Math.PI / 2;
+    base.position.y = baseHeightM;
+    base.receiveShadow = true;
+    group.add(base);
+  }
+  for (const zone of zones) {
+    const material = ceilingSurfaceMaterial(zone.material, zone.widthM, zone.depthM);
+    const plane = new THREE.Mesh(new THREE.PlaneGeometry(zone.widthM, zone.depthM), material);
+    plane.rotation.x = Math.PI / 2;
+    plane.position.set(zone.x, zone.heightM, zone.y);
+    plane.receiveShadow = true;
+    group.add(plane);
+    if (baseHeightM !== undefined && Math.abs(baseHeightM - zone.heightM) > 0.01) {
+      const vertical = Math.abs(baseHeightM - zone.heightM);
+      const mid = (baseHeightM + zone.heightM) / 2;
+      const fasciaMaterial = new THREE.MeshStandardMaterial({ color: zone.material === 'drop-tile' ? '#b5b4ae' : '#ddd9d1', roughness: 0.95 });
+      const sides: [number, number, number, number][] = [
+        [zone.x, zone.y - zone.depthM / 2, zone.widthM, 0],
+        [zone.x, zone.y + zone.depthM / 2, zone.widthM, 0],
+        [zone.x - zone.widthM / 2, zone.y, zone.depthM, Math.PI / 2],
+        [zone.x + zone.widthM / 2, zone.y, zone.depthM, Math.PI / 2],
+      ];
+      for (const [x, z, length, rotationY] of sides) {
+        const fascia = new THREE.Mesh(new THREE.BoxGeometry(length, vertical, 0.012), fasciaMaterial);
+        fascia.position.set(x, mid, z);
+        fascia.rotation.y = rotationY;
+        group.add(fascia);
+      }
+    }
+  }
+  return group;
+}
+
+export function Arena({ venue, show, offen = false, planungsBoden = PLANUNGS_BODEN.dunkel, showCeiling = show }: { venue: Venue; show: boolean; offen?: boolean; planungsBoden?: string; showCeiling?: boolean }) {
   // Gewaehlte Boden- und Wandoberflaechen gelten auch ohne Showlicht (#191);
   // ohne Wahl bleibt der Planungs-Look schlicht.
   const gewaehlt = venue.floorMaterial;
@@ -123,6 +229,8 @@ export function Arena({ venue, show, offen = false, planungsBoden = PLANUNGS_BOD
   const d = venue.heightM;
   // Unter freiem Himmel stehen keine Hallenwaende und keine Decke.
   const decke = offen ? undefined : venue.ceilingHeightM;
+  const ceilingMaterial = venue.ceilingMaterial ?? DEFAULT_CEILING_MATERIAL;
+  const ceilingZones = offen ? [] : venue.ceilingZones ?? [];
   const wandArt = venue.wallMaterial;
   const obj = useMemo(() => {
     const g = new THREE.Group();
@@ -153,16 +261,12 @@ export function Arena({ venue, show, offen = false, planungsBoden = PLANUNGS_BOD
         m.receiveShadow = true;
         g.add(m);
       }
-      // Die Decke nur im Showlicht: zum Planen bleibt der Blick von oben frei.
-      if (show) {
-        const deckeM = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ color: '#0d0e10', roughness: 0.95 }));
-        deckeM.rotation.x = Math.PI / 2;
-        deckeM.position.set(w / 2, decke, d / 2);
-        g.add(deckeM);
-      }
     }
+    // Camera renders always need a ceiling; the free planning view can keep
+    // the overhead open so objects remain easy to edit from above.
+    if (showCeiling && (decke !== undefined || ceilingZones.length > 0)) g.add(ceilingGroup(w, d, decke, ceilingMaterial, ceilingZones));
     return g;
-  }, [w, d, boden, gewaehlt, decke, wandArt, show, planungsBoden]);
+  }, [w, d, boden, gewaehlt, decke, ceilingMaterial, ceilingZones, wandArt, show, showCeiling, planungsBoden]);
   useEntsorgen(obj);
   return obj ? <primitive object={obj} /> : null;
 }

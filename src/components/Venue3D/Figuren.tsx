@@ -12,7 +12,7 @@ import { personDarstellung, type PersonDarstellung } from '../../utils/personGes
 import { useUnits } from '../../store/units';
 import { formatLengthWithUnit } from '../../utils/units';
 
-export function PersonMesh({ x, z, height, width, depth, label, objectType, color, showLabel = true }: { x: number; z: number; height: number; width?: number; depth?: number; label: string; objectType?: StageObjectType; color?: string; showLabel?: boolean }) {
+export function PersonMesh({ x, z, height, width, depth, suspensionDropM, label, objectType, color, showLabel = true }: { x: number; z: number; height: number; width?: number; depth?: number; suspensionDropM?: number; label: string; objectType?: StageObjectType; color?: string; showLabel?: boolean }) {
   const units = useUnits((s) => s.units);
   const type = objectType ?? 'person';
   const defaultColor =
@@ -24,11 +24,15 @@ export function PersonMesh({ x, z, height, width, depth, label, objectType, colo
     type === 'chair' ? '#a16207' :
     type === 'table' ? '#a16207' :
     type === 'lectern' ? '#7c3aed' :
+    type === 'linear-light' ? '#fbbf24' :
     type === 'schneetiger' ? '#e0f2fe' :
     '#f59e0b';
   const col = color ?? defaultColor;
   const tableWidth = Math.max(0.1, width ?? 1.2);
   const tableDepth = Math.max(0.1, depth ?? tableWidth * 2 / 3);
+  const lightWidth = Math.max(0.02, width ?? 0.08);
+  const lightLength = Math.max(0.1, depth ?? 1.2);
+  const wireDrop = Math.max(0, suspensionDropM ?? 1);
 
   return (
     <group position={[x, height / 2, z]}>
@@ -76,6 +80,23 @@ export function PersonMesh({ x, z, height, width, depth, label, objectType, colo
             <mesh key={i} position={[lx, -height * 0.3, lz]}>
               <boxGeometry args={[0.04, height * 0.5, 0.04]} />
               <meshStandardMaterial color="#57534e" />
+            </mesh>
+          ))}
+        </>
+      ) : type === 'linear-light' ? (
+        <>
+          <mesh castShadow receiveShadow>
+            <boxGeometry args={[lightWidth, height, lightLength]} />
+            <meshStandardMaterial color={color ?? '#171717'} metalness={0.45} roughness={0.35} />
+          </mesh>
+          <mesh position={[0, -height / 2 - 0.004, 0]}>
+            <boxGeometry args={[Math.max(0.015, lightWidth * 0.75), 0.008, Math.max(0.08, lightLength * 0.94)]} />
+            <meshStandardMaterial color="#fff7d6" emissive={col} emissiveIntensity={2.2} toneMapped={false} />
+          </mesh>
+          {wireDrop > 0.001 && [-0.36, 0.36].map((along) => (
+            <mesh key={along} position={[0, height / 2 + wireDrop / 2, along * lightLength]}>
+              <cylinderGeometry args={[0.003, 0.003, wireDrop, 8]} />
+              <meshStandardMaterial color="#9ca3af" metalness={0.9} roughness={0.25} />
             </mesh>
           ))}
         </>
@@ -184,7 +205,7 @@ export function PersonMesh({ x, z, height, width, depth, label, objectType, colo
         </>
       )}
       {showLabel && (
-        <Text font={LABEL_FONT} position={[0, height * 0.5, 0]} fontSize={0.22} color={col} anchorX="center"
+        <Text font={LABEL_FONT} position={[0, type === 'linear-light' ? height / 2 + wireDrop + 0.1 : height * 0.5, 0]} fontSize={0.22} color={col} anchorX="center"
           outlineWidth={0.015} outlineColor="#000000">
           {label} ({formatLengthWithUnit(height, units)})
         </Text>
@@ -226,7 +247,7 @@ export function Figur({ person, facingDeg, name, objektName }: { person: Referen
   const units = useUnits((s) => s.units);
   const darstellung = useMemo(() => personDarstellung(person), [person.id, person.label, person.objectType]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!darstellung) {
-    return <group rotation={[0, objectYaw(person.rotationDeg), 0]}><PersonMesh x={0} z={0} height={person.height} width={person.width} depth={person.depth} label={person.label} objectType={person.objectType} color={person.color} showLabel={objektName} /></group>;
+    return <group rotation={[0, objectYaw(person.rotationDeg), 0]}><PersonMesh x={0} z={0} height={person.height} width={person.width} depth={person.depth} suspensionDropM={person.suspensionDropM} label={person.label} objectType={person.objectType} color={person.color} showLabel={objektName} /></group>;
   }
   return (
     <>

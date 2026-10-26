@@ -13,7 +13,7 @@ import type { HimmelPrefs } from '../../utils/tageslicht';
 import { PLANUNG_JE_THEMA, PLANUNGS_BODEN } from '../Venue3D/planungsLook';
 import { stelleEinfachEin, type RenderLook } from './renderLook';
 
-export function SzenenGrund({ daten, show, tag, sky, simple, werte, audience, thema, far, look, onBelichtung, einfacheBuehne }: {
+export function SzenenGrund({ daten, show, tag, sky, simple, werte, audience, thema, far, look, onBelichtung, einfacheBuehne, cameraView = false }: {
   daten: KulissenDaten;
   show: boolean;
   /** Tageslicht statt Halle (nur mit Showlicht). */
@@ -28,6 +28,8 @@ export function SzenenGrund({ daten, show, tag, sky, simple, werte, audience, th
   look: RenderLook;
   onBelichtung: (b: number) => void;
   einfacheBuehne?: (stage: Stage) => ReactNode;
+  /** Render room ceilings even when the planning view keeps its overhead open. */
+  cameraView?: boolean;
 }) {
   return (
     <>
@@ -44,6 +46,7 @@ export function SzenenGrund({ daten, show, tag, sky, simple, werte, audience, th
         audience={audience}
         planungsBoden={PLANUNGS_BODEN[thema]}
         einfacheBuehne={einfacheBuehne}
+        cameraView={cameraView}
       />
     </>
   );

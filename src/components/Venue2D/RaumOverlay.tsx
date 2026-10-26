@@ -7,26 +7,31 @@ import type Konva from 'konva';
 import { sitzblockNormal, sitzblockPlaetze, videowandNormal, type VenueSeatingBlock, type VenueVideoWall } from '../../avplan/floorplan';
 import { useTranslation, format } from '../../i18n';
 import { useUnits } from '../../store/units';
-import { formatDimensions } from '../../utils/units';
+import { formatDimensions, formatLengthWithUnit } from '../../utils/units';
+import type { CeilingZone } from '../../types';
+import { normaliseCeilingZone } from '../../utils/ceiling';
 
 // Bedeutungsfarben (siehe PALETTE in Venue2D): bleiben in beiden Themen gleich.
 const SITZEN = '#7c8db0';
 const STEHEN = '#b48a3c';
 const WAND = '#8b6cff';
+const CEILING = '#22d3ee';
 
-export type RaumAuswahl = { art: 'block' | 'wand'; id: string } | null;
+export type RaumAuswahl = { art: 'block' | 'wand' | 'ceiling'; id: string } | null;
 
 export default function RaumOverlay({
-  ppm, blocks, walls, locked, auswahl, onAuswahl, onBlock, onWand,
+  ppm, blocks, walls, ceilings, locked, auswahl, onAuswahl, onBlock, onWand, onCeiling,
 }: {
   ppm: number;
   blocks: VenueSeatingBlock[];
   walls: VenueVideoWall[];
+  ceilings: CeilingZone[];
   locked: boolean;
   auswahl: RaumAuswahl;
   onAuswahl: (a: RaumAuswahl) => void;
   onBlock: (id: string, patch: Partial<VenueSeatingBlock>) => void;
   onWand: (id: string, patch: Partial<VenueVideoWall>) => void;
+  onCeiling: (id: string, patch: Partial<CeilingZone>) => void;
 }) {
   const { t } = useTranslation();
   const units = useUnits((s) => s.units);
@@ -39,7 +44,7 @@ export default function RaumOverlay({
     const node = auswahl && !locked ? knoten.current[auswahl.id] : null;
     tr.nodes(node ? [node] : []);
     tr.getLayer()?.batchDraw();
-  }, [auswahl, locked, blocks, walls]);
+  }, [auswahl, locked, blocks, walls, ceilings]);
 
   const waehle = (a: RaumAuswahl) => (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     e.cancelBubble = true;
@@ -53,6 +58,47 @@ export default function RaumOverlay({
 
   return (
     <>
+      {ceilings.map((raw) => {
+        const zone = normaliseCeilingZone(raw);
+        const width = zone.widthM * ppm;
+        const depth = zone.depthM * ppm;
+        const selected = auswahl?.art === 'ceiling' && auswahl.id === zone.id;
+        return (
+          <Group
+            key={zone.id}
+            ref={ref(zone.id)}
+            x={zone.x * ppm}
+            y={zone.y * ppm}
+            draggable={!locked}
+            onClick={waehle({ art: 'ceiling', id: zone.id })}
+            onTap={waehle({ art: 'ceiling', id: zone.id })}
+            onDragEnd={(e) => onCeiling(zone.id, { x: Math.round((e.target.x() / ppm) * 10) / 10, y: Math.round((e.target.y() / ppm) * 10) / 10 })}
+            onTransformEnd={(e) => {
+              const node = e.target;
+              const sx = node.scaleX();
+              const sy = node.scaleY();
+              node.scale({ x: 1, y: 1 });
+              onCeiling(zone.id, {
+                x: Math.round((node.x() / ppm) * 10) / 10,
+                y: Math.round((node.y() / ppm) * 10) / 10,
+                widthM: Math.max(0.2, Math.round(zone.widthM * sx * 10) / 10),
+                depthM: Math.max(0.2, Math.round(zone.depthM * sy * 10) / 10),
+              });
+            }}
+          >
+            <Rect x={-width / 2} y={-depth / 2} width={width} height={depth} fill={CEILING + '18'} stroke={CEILING} strokeWidth={selected ? 2.5 : 1.25} dash={[5, 4]} />
+            <Text
+              x={-width / 2 + 4}
+              y={-depth / 2 + 4}
+              width={Math.max(40, width - 8)}
+              text={`${zone.label || t('room.ceiling.area', 'Ceiling area')} · ${formatLengthWithUnit(zone.heightM, units)}`}
+              fontSize={10}
+              fill={CEILING}
+              listening={false}
+            />
+          </Group>
+        );
+      })}
       {blocks.map((roh) => {
         const b = sitzblockNormal(roh);
         const tiefe = b.rows * b.rowSpacingM;
@@ -145,14 +191,14 @@ export default function RaumOverlay({
       })}
       <Transformer
         ref={trRef}
-        rotateEnabled
+        rotateEnabled={auswahl?.art !== 'ceiling'}
         rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
         keepRatio={false}
         ignoreStroke
         anchorSize={8}
-        anchorStroke={auswahl?.art === 'wand' ? WAND : SITZEN}
+        anchorStroke={auswahl?.art === 'wand' ? WAND : auswahl?.art === 'ceiling' ? CEILING : SITZEN}
         anchorFill="#132040"
-        borderStroke={auswahl?.art === 'wand' ? WAND : SITZEN}
+        borderStroke={auswahl?.art === 'wand' ? WAND : auswahl?.art === 'ceiling' ? CEILING : SITZEN}
         enabledAnchors={auswahl?.art === 'wand' ? ['middle-left', 'middle-right'] : ['top-left', 'top-right', 'bottom-left', 'bottom-right', 'middle-left', 'middle-right', 'top-center', 'bottom-center']}
         boundBoxFunc={(alt, neu) => (neu.width < 8 || neu.height < 4 ? alt : neu)}
       />

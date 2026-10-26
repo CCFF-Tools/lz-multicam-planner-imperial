@@ -10,7 +10,7 @@ import { wandDicke, wandStuecke } from '../../utils/wallOpenings';
 import { Arena, CrowdAndSeating, FieldMesh, LedWalls, ShowRig, StageBodyReal, WallSurfaceMaterial } from './ShowScene';
 import type { KulissenDaten } from './kulissenDaten';
 
-export function Kulisse({ daten, show, tageslicht = false, simple, werte, audience, planungsBoden, einfacheBuehne }: {
+export function Kulisse({ daten, show, tageslicht = false, simple, werte, audience, planungsBoden, einfacheBuehne, cameraView = false }: {
   daten: KulissenDaten;
   /** Showlicht an. */
   show: boolean;
@@ -24,6 +24,7 @@ export function Kulisse({ daten, show, tageslicht = false, simple, werte, audien
   planungsBoden?: string;
   /** Buehne ohne Showlicht; fehlt sie, steht auch dann der echte Koerper da. */
   einfacheBuehne?: (stage: Stage) => ReactNode;
+  cameraView?: boolean;
 }) {
   const { venue, walls, diag, boardLook, draussen, ledWaende, audienceCams, audiencePersons } = daten;
   return (
@@ -48,7 +49,7 @@ export function Kulisse({ daten, show, tageslicht = false, simple, werte, audien
         </>
       )}
 
-      <Arena venue={venue} show={show} offen={tageslicht} planungsBoden={planungsBoden} />
+      <Arena venue={venue} show={show} offen={tageslicht} planungsBoden={planungsBoden} showCeiling={cameraView || show} />
 
       {venue.stages.map((s) => (
         !show && einfacheBuehne
