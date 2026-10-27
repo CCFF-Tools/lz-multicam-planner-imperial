@@ -85,6 +85,14 @@ export const preview: Record<string, string> = {
   'preview.export.allCameras': 'ALLE KAMERAS IM PROJEKT',
   'preview.export.noCameras': 'Keine Kameras zum Exportieren. Zuerst eine Kamera hinzufügen.',
   'preview.export.generating': 'Export wird erstellt…',
+  'preview.export.incomplete': '{done} von {total} Bildern exportiert. Prüfe, ob jede Kamera und jedes Objektiv noch vorhanden ist.',
+  'preview.export.presets.title': 'Kamera-Presets exportieren',
+  'preview.export.presets.desc': 'Wähle die nummerierten PTZ-Presets für den Export. Jedes ausgewählte Preset wird als PNG in ein ZIP geschrieben.',
+  'preview.export.presets.all': 'Alle auswählen',
+  'preview.export.presets.clear': 'Auswahl löschen',
+  'preview.export.presets.empty': 'In diesem Projekt sind keine nummerierten Kamera-Presets gespeichert.',
+  'preview.export.presets.cancel': 'Abbrechen',
+  'preview.export.presets.export': '{count} exportieren',
   // Die beiden Schrittknöpfe am Objektiv-Regler.
   // Regler-Hilfen und Presets in der Vorschau (B-61: waren fest deutsch).
   'preview.aperture.beyond': 'Blende über die echten Objektiv-Grenzen hinaus durchfahren',

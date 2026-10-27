@@ -390,23 +390,30 @@ export default function Header({
               <MenuItem
                 icon={<FiDownload size={13} />}
                 onClick={() => { close(); handleExport('all'); }}
-                note={t('header.export.all.desc', 'One PNG per camera at its current focal length')}
+                note={t('header.export.all.desc', 'ZIP with one PNG per camera at its current focal length')}
               >
                 {t('header.export.all', 'All cameras')}
               </MenuItem>
               <MenuItem
                 icon={<FiDownload size={13} />}
                 onClick={() => { close(); handleExport('widetele'); }}
-                note={t('header.export.widetele.desc', 'Selected camera at lens min and max focal length')}
+                note={t('header.export.widetele.desc', 'ZIP with the selected camera at lens min and max focal length')}
               >
                 {t('header.export.widetele', 'Current — wide + tele')}
               </MenuItem>
               <MenuItem
                 icon={<FiDownload size={13} />}
                 onClick={() => { close(); handleExport('all-widetele'); }}
-                note={t('header.export.allWidetele.desc', 'Two PNGs per camera (lens min and max)')}
+                note={t('header.export.allWidetele.desc', 'ZIP with two PNGs per zoom camera (lens min and max)')}
               >
                 {t('header.export.allWidetele', 'All — wide + tele')}
+              </MenuItem>
+              <MenuItem
+                icon={<FiDownload size={13} />}
+                onClick={() => { close(); handleExport('selected-presets'); }}
+                note={t('header.export.selectedPresets.desc', 'Choose numbered PTZ presets across cameras and export them as a ZIP')}
+              >
+                {t('header.export.selectedPresets', 'Selected camera presets…')}
               </MenuItem>
               {/* Bedarf 50 — die Schicht-Uebergabe. Sie steht hier und nicht
                   bei den Kamerakarten, weil sie kein Bild ist: ein Blatt ueber
