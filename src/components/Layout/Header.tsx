@@ -408,6 +408,13 @@ export default function Header({
               >
                 {t('header.export.allWidetele', 'All — wide + tele')}
               </MenuItem>
+              <MenuItem
+                icon={<FiDownload size={13} />}
+                onClick={() => { close(); handleExport('selected-presets'); }}
+                note={t('header.export.selectedPresets.desc', 'Choose numbered PTZ presets across cameras and export them as a ZIP')}
+              >
+                {t('header.export.selectedPresets', 'Selected camera presets…')}
+              </MenuItem>
               {/* Bedarf 50 — die Schicht-Uebergabe. Sie steht hier und nicht
                   bei den Kamerakarten, weil sie kein Bild ist: ein Blatt ueber
                   ALLE Positionen, das jemand ausdruckt und weiterreicht. */}

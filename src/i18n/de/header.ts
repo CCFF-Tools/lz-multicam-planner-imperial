@@ -66,6 +66,8 @@ export const header: Record<string, string> = {
   'header.export.widetele.desc': 'ZIP mit ausgewählter Kamera bei minimaler und maximaler Brennweite',
   'header.export.allWidetele': 'Alle — Weit + Tele',
   'header.export.allWidetele.desc': 'ZIP mit zwei PNGs pro Zoomkamera (Brennweite min und max)',
+  'header.export.selectedPresets': 'Ausgewählte Kamera-Presets…',
+  'header.export.selectedPresets.desc': 'Nummerierte PTZ-Presets kamerübergreifend auswählen und als ZIP exportieren',
   // Bedarf 50 — die Schicht-Uebergabe.
   'header.export.shift': 'Schicht-Übergabe drucken',
   'header.export.shift.desc': 'Bildzustand, Bedienfeld, Fehler und Befunde je Position',

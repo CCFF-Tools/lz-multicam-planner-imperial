@@ -24,10 +24,10 @@ import { WEBGL_POWER_PREFERENCE } from '../../utils/gpuInfo';
 import { useUnits } from '../../store/units';
 import { formatDimensions, formatLengthWithUnit } from '../../utils/units';
 import { createZip } from '../../utils/zip';
-import { cameraExportJobs } from '../../utils/exportBatch';
+import { cameraExportJobs, presetExportJobs, presetExportKey } from '../../utils/exportBatch';
 import { withTransientProjectState } from '../../store/transientProjectState';
 
-export type ExportMode = 'current' | 'all' | 'widetele' | 'all-widetele';
+export type ExportMode = 'current' | 'all' | 'widetele' | 'all-widetele' | 'selected-presets';
 
 interface ExportDetail {
   mode?: ExportMode;
@@ -39,13 +39,15 @@ interface ExportArtifact {
 }
 
 /** Export optics are temporary UI state and must not dirty the project. */
-function setExportFocal(cameraId: string, focalLength: number): void {
+function setExportCamera(camera: VenueCamera): void {
   withTransientProjectState(() => {
     useStore.setState((state) => ({
-      cameras: state.cameras.map((camera) => camera.id === cameraId ? { ...camera, focalLength } : camera),
+      cameras: state.cameras.map((current) => current.id === camera.id ? camera : current),
     }));
   });
 }
+
+const safeFilePart = (value: string): string => value.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '') || 'export';
 
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -69,6 +71,8 @@ function downloadBlob(blob: Blob, filename: string): void {
 export default function ExportPanel() {
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const [presetPickerOpen, setPresetPickerOpen] = useState(false);
+  const [selectedPresets, setSelectedPresets] = useState<Set<string>>(() => new Set());
   const { cameras, venue, persons, projectVersion } = useStore();
   const { t } = useTranslation();
   const units = useUnits((s) => s.units);
@@ -120,12 +124,14 @@ export default function ExportPanel() {
   }, []);
 
   /** Render a single export PNG for a given camera + optional focal length override. */
-  const renderOne = useCallback(async (targetCam: VenueCamera, opts?: { focalOverride?: number; variantLabel?: string; extraSettleMs?: number }) => {
+  const renderOne = useCallback(async (baseCam: VenueCamera, opts?: { focalOverride?: number; variantLabel?: string; extraSettleMs?: number; cameraOverride?: Partial<VenueCamera> }) => {
+    const overriddenCam = { ...baseCam, ...opts?.cameraOverride };
+    const targetCam = { ...overriddenCam, focalLength: opts?.focalOverride ?? overriddenCam.focalLength };
     const camDef = getCameraById(targetCam.cameraId, useStore.getState().customCameras);
     const lensDef = getLensById(targetCam.lensId, useStore.getState().customLenses);
     if (!camDef || !lensDef) return null;
 
-    const focalLength = opts?.focalOverride ?? targetCam.focalLength;
+    const focalLength = targetCam.focalLength;
     const sensor = getEffectiveSensor(camDef, lensDef, targetCam.useSpeedbooster, targetCam.sensorModeIndex, targetCam.activeMount);
     const adapterInfo = getAdapterInfo(camDef, lensDef, targetCam.useSpeedbooster, targetCam.activeMount);
     const fov = computeFov(sensor, focalLength, targetCam.focusDistance, targetCam.extenderActive, lensDef.squeeze ?? 1);
@@ -146,15 +152,15 @@ export default function ExportPanel() {
 
     // Apply override to the store so the live preview/2D/3D paint with the right state,
     // then wait one frame so the canvases update before we capture them.
-    const originalFocal = targetCam.focalLength;
+    const originalCam = useStore.getState().cameras.find((camera) => camera.id === targetCam.id) ?? baseCam;
     const originalSelected = useStore.getState().selectedCameraId;
     const needSelectionChange = useStore.getState().selectedCameraId !== targetCam.id;
-    const needFocalChange = opts?.focalOverride !== undefined && opts.focalOverride !== originalFocal;
+    const needCameraChange = opts?.focalOverride !== undefined || opts?.cameraOverride !== undefined;
 
     if (needSelectionChange) useStore.getState().selectCamera(targetCam.id);
-    if (needFocalChange) setExportFocal(targetCam.id, focalLength);
+    if (needCameraChange) setExportCamera(targetCam);
     const extra = opts?.extraSettleMs ?? 0;
-    if (needSelectionChange || needFocalChange || extra > 0) await waitForPaint(250 + extra);
+    if (needSelectionChange || needCameraChange || extra > 0) await waitForPaint(250 + extra);
 
     // ── Layout constants ──
     const EW = 1920;
@@ -604,7 +610,7 @@ export default function ExportPanel() {
     ctx.fillText(stampLine(stamp), padding, totalH - stampH + 18);
 
     // ── Artifact ──
-    const filename = `${targetCam.label.replace(/\s+/g, '_')}${opts?.variantLabel ? `_${opts.variantLabel.replace(/\s+/g, '_')}` : ''}_${venue.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_v${projectVersion}.png`;
+    const filename = `${safeFilePart(targetCam.label)}${opts?.variantLabel ? `_${safeFilePart(opts.variantLabel)}` : ''}_${safeFilePart(venue.name)}_v${projectVersion}.png`;
     const blob = await new Promise<Blob | null>((resolve) => {
       out.toBlob((blob) => {
         resolve(blob);
@@ -612,15 +618,15 @@ export default function ExportPanel() {
     });
 
     // ── Restore overrides ──
-    if (needFocalChange) setExportFocal(targetCam.id, originalFocal);
+    if (needCameraChange) setExportCamera(originalCam);
     if (needSelectionChange) useStore.getState().selectCamera(originalSelected);
     return blob ? { filename, blob } satisfies ExportArtifact : null;
   }, [cameras, venue, persons, projectVersion, capture2DCanvas, capture3DCanvas, capturePreviewCanvas, waitForPaint, t, length, units]);
 
-  const generateExport = useCallback(async (mode: ExportMode = 'current') => {
+  const generateExport = useCallback(async (mode: ExportMode = 'current', presetKeys: ReadonlySet<string> = new Set()) => {
     const state = useStore.getState();
     const currentCam = state.cameras.find((c) => c.id === state.selectedCameraId);
-    const targetCams = (mode === 'all' || mode === 'all-widetele')
+    const targetCams = (mode === 'all' || mode === 'all-widetele' || mode === 'selected-presets')
       ? state.cameras
       : currentCam ? [currentCam] : [];
 
@@ -653,12 +659,23 @@ export default function ExportPanel() {
     }
 
     const originalSelected = state.selectedCameraId;
-    const originalFocals = new Map(state.cameras.map((camera) => [camera.id, camera.focalLength]));
+    const originalCameras = new Map(state.cameras.map((camera) => [camera.id, camera]));
     const wantsWideTele = mode === 'widetele' || mode === 'all-widetele';
 
-    const jobs = cameraExportJobs(targetCams, wantsWideTele, (camera) => (
-      getLensById(camera.lensId, useStore.getState().customLenses)
-    ));
+    const jobs = mode === 'selected-presets'
+      ? presetExportJobs(targetCams, presetKeys)
+      : cameraExportJobs(targetCams, wantsWideTele, (camera) => (
+          getLensById(camera.lensId, useStore.getState().customLenses)
+        ));
+
+    if (jobs.length === 0) {
+      if (framingApi && savedFraming) {
+        try { framingApi.apply(savedFraming); } catch { /* ignore */ }
+      }
+      if (restoreLayout) restoreLayout();
+      setExporting(false);
+      return;
+    }
 
     setExportProgress({ current: 0, total: jobs.length });
 
@@ -669,6 +686,7 @@ export default function ExportPanel() {
         const artifact = await renderOne(jobs[i].cam, {
           focalOverride: jobs[i].focalOverride,
           variantLabel: jobs[i].variantLabel,
+          cameraOverride: jobs[i].cameraOverride,
           // The first capture in the batch needs extra settle time so the WebGL
           // 3D canvas, freshly resized by the layout swap and the framing change,
           // actually paints visible content before drawImage reads from it.
@@ -691,7 +709,7 @@ export default function ExportPanel() {
       // Restore original selection (renderOne handles per-camera restore but final
       // cleanup ensures we land on whatever was selected before the batch).
       useStore.getState().selectCamera(originalSelected);
-      for (const [cameraId, focalLength] of originalFocals) setExportFocal(cameraId, focalLength);
+      for (const camera of originalCameras.values()) setExportCamera(camera);
       if (framingApi && savedFraming) {
         try { framingApi.apply(savedFraming); } catch { /* ignore */ }
       }
@@ -704,11 +722,21 @@ export default function ExportPanel() {
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<ExportDetail>).detail;
-      generateExport(detail?.mode ?? 'current');
+      const mode = detail?.mode ?? 'current';
+      if (mode === 'selected-presets') {
+        setSelectedPresets(new Set());
+        setPresetPickerOpen(true);
+      } else {
+        void generateExport(mode);
+      }
     };
     window.addEventListener('multicam-export', handler);
     return () => window.removeEventListener('multicam-export', handler);
   }, [generateExport]);
+
+  const presetOptions = cameras.flatMap((camera) => [...(camera.presets ?? [])]
+    .sort((a, b) => a.number - b.number)
+    .map((preset) => ({ camera, preset, key: presetExportKey(camera.id, preset.number) })));
 
   if (exporting) {
     return (
@@ -720,6 +748,58 @@ export default function ExportPanel() {
               {exportProgress.current} / {exportProgress.total}
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (presetPickerOpen) {
+    const allKeys = presetOptions.map((option) => option.key);
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-bc-scrim p-4">
+        <div role="dialog" aria-modal="true" aria-labelledby="preset-export-title" className="bc-dialog flex max-h-[80vh] w-full max-w-xl flex-col p-5 text-bc-text-bright">
+          <h2 id="preset-export-title" className="text-lg font-bold">{t('preview.export.presets.title', 'Export camera presets')}</h2>
+          <p className="mt-1 text-sm text-bc-muted">{t('preview.export.presets.desc', 'Choose the numbered PTZ presets to render. Each selected preset becomes one PNG in a ZIP.')}</p>
+          <div className="mt-3 flex gap-2">
+            <button type="button" className="bc-btn-soft text-xs" onClick={() => setSelectedPresets(new Set(allKeys))}>{t('preview.export.presets.all', 'Select all')}</button>
+            <button type="button" className="bc-btn-soft text-xs" onClick={() => setSelectedPresets(new Set())}>{t('preview.export.presets.clear', 'Clear')}</button>
+          </div>
+          <div className="mt-3 min-h-0 flex-1 overflow-y-auto border border-bc-border">
+            {presetOptions.length === 0 ? (
+              <p className="p-4 text-sm text-bc-dim">{t('preview.export.presets.empty', 'No numbered camera presets are saved in this project.')}</p>
+            ) : presetOptions.map(({ camera, preset, key }) => (
+              <label key={key} className="flex cursor-pointer items-start gap-3 border-b border-bc-border px-3 py-2 last:border-b-0 hover:bg-bc-hover">
+                <input
+                  type="checkbox"
+                  checked={selectedPresets.has(key)}
+                  onChange={(event) => setSelectedPresets((current) => {
+                    const next = new Set(current);
+                    if (event.target.checked) next.add(key); else next.delete(key);
+                    return next;
+                  })}
+                />
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold">{camera.label} · #{preset.number} · {preset.name}</span>
+                  <span className="block text-xs text-bc-dim">{preset.focalLength.toFixed(1)} mm · pan {preset.pan.toFixed(1)}° · tilt {preset.tilt.toFixed(1)}° · {length(preset.focusDistance)}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="mt-4 flex justify-end gap-2">
+            <button type="button" className="bc-btn-soft" onClick={() => setPresetPickerOpen(false)}>{t('preview.export.presets.cancel', 'Cancel')}</button>
+            <button
+              type="button"
+              className="bc-btn-primary"
+              disabled={selectedPresets.size === 0}
+              onClick={() => {
+                const selected = new Set(selectedPresets);
+                setPresetPickerOpen(false);
+                void generateExport('selected-presets', selected);
+              }}
+            >
+              {format(t('preview.export.presets.export', 'Export {count}'), { count: selectedPresets.size })}
+            </button>
+          </div>
         </div>
       </div>
     );

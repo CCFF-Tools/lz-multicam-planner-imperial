@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { VenueCamera } from '../types';
-import { cameraExportJobs } from '../utils/exportBatch';
+import { cameraExportJobs, presetExportJobs, presetExportKey } from '../utils/exportBatch';
 
 const camera = (id: string, lensId = id): VenueCamera => ({ id, lensId } as VenueCamera);
 
@@ -29,5 +29,24 @@ describe('Wide + Tele export queue', () => {
       { cam: expect.objectContaining({ id: 'a' }) },
       { cam: expect.objectContaining({ id: 'b' }) },
     ]);
+  });
+});
+
+describe('selected preset export queue', () => {
+  it('exports only checked presets in camera and preset-number order', () => {
+    const a = { ...camera('a'), presets: [
+      { number: 8, name: 'Close', pan: 20, tilt: -5, focalLength: 120, focusDistance: 9 },
+      { number: 2, name: 'Wide', pan: 0, tilt: 0, focalLength: 20, focusDistance: 12 },
+    ] } as VenueCamera;
+    const b = { ...camera('b'), presets: [
+      { number: 1, name: 'Lectern', pan: 45, tilt: -2, focalLength: 70, focusDistance: 6 },
+    ] } as VenueCamera;
+    const selected = new Set([presetExportKey('a', 8), presetExportKey('b', 1)]);
+    const jobs = presetExportJobs([a, b], selected);
+    expect(jobs.map((job) => [job.cam.id, job.variantLabel])).toEqual([
+      ['a', 'preset_8_Close'],
+      ['b', 'preset_1_Lectern'],
+    ]);
+    expect(jobs[0].cameraOverride).toMatchObject({ pan: 20, tilt: -5, focalLength: 120, focusDistance: 9 });
   });
 });
