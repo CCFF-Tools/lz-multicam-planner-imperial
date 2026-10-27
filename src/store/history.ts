@@ -15,6 +15,7 @@
 // Oeffnen und Neu (`projectEpoch`) beginnen die Historie von vorn.
 import { useEffect, useSyncExternalStore } from 'react';
 import { useStore, takeHistorySnapshot, restoreHistorySnapshot, HISTORY_KEYS, type HistorySnapshot } from './useStore';
+import { isTransientProjectState } from './transientProjectState';
 
 export const HISTORY_LIMIT = 100;
 export const COALESCE_MS = 300;
@@ -58,6 +59,10 @@ function push(entry: HistorySnapshot) {
 
 function onChange(now: number) {
   const s = useStore.getState();
+  if (isTransientProjectState()) {
+    current = takeHistorySnapshot(s);
+    return;
+  }
   if (s.projectEpoch !== epoch) {
     epoch = s.projectEpoch;
     past = [];

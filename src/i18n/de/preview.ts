@@ -85,6 +85,7 @@ export const preview: Record<string, string> = {
   'preview.export.allCameras': 'ALLE KAMERAS IM PROJEKT',
   'preview.export.noCameras': 'Keine Kameras zum Exportieren. Zuerst eine Kamera hinzufügen.',
   'preview.export.generating': 'Export wird erstellt…',
+  'preview.export.incomplete': '{done} von {total} Bildern exportiert. Prüfe, ob jede Kamera und jedes Objektiv noch vorhanden ist.',
   // Die beiden Schrittknöpfe am Objektiv-Regler.
   // Regler-Hilfen und Presets in der Vorschau (B-61: waren fest deutsch).
   'preview.aperture.beyond': 'Blende über die echten Objektiv-Grenzen hinaus durchfahren',

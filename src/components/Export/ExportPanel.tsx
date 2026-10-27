@@ -23,11 +23,37 @@ import { useTranslation, format } from '../../i18n';
 import { WEBGL_POWER_PREFERENCE } from '../../utils/gpuInfo';
 import { useUnits } from '../../store/units';
 import { formatDimensions, formatLengthWithUnit } from '../../utils/units';
+import { createZip } from '../../utils/zip';
+import { cameraExportJobs } from '../../utils/exportBatch';
+import { withTransientProjectState } from '../../store/transientProjectState';
 
 export type ExportMode = 'current' | 'all' | 'widetele' | 'all-widetele';
 
 interface ExportDetail {
   mode?: ExportMode;
+}
+
+interface ExportArtifact {
+  filename: string;
+  blob: Blob;
+}
+
+/** Export optics are temporary UI state and must not dirty the project. */
+function setExportFocal(cameraId: string, focalLength: number): void {
+  withTransientProjectState(() => {
+    useStore.setState((state) => ({
+      cameras: state.cameras.map((camera) => camera.id === cameraId ? { ...camera, focalLength } : camera),
+    }));
+  });
+}
+
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**
@@ -72,6 +98,12 @@ export default function ExportPanel() {
 
   const capturePreviewCanvas = useCallback((): HTMLCanvasElement | null => {
     const registry = getExportRegistry();
+    if (typeof registry.renderPreviewOffscreen === 'function') {
+      try {
+        const canvas = registry.renderPreviewOffscreen(960);
+        if (canvas) return canvas;
+      } catch { /* fall through */ }
+    }
     if (typeof registry.capturePreviewCanvas === 'function') {
       try { return registry.capturePreviewCanvas(); } catch { /* fall through */ }
     }
@@ -91,7 +123,7 @@ export default function ExportPanel() {
   const renderOne = useCallback(async (targetCam: VenueCamera, opts?: { focalOverride?: number; variantLabel?: string; extraSettleMs?: number }) => {
     const camDef = getCameraById(targetCam.cameraId, useStore.getState().customCameras);
     const lensDef = getLensById(targetCam.lensId, useStore.getState().customLenses);
-    if (!camDef || !lensDef) return;
+    if (!camDef || !lensDef) return null;
 
     const focalLength = opts?.focalOverride ?? targetCam.focalLength;
     const sensor = getEffectiveSensor(camDef, lensDef, targetCam.useSpeedbooster, targetCam.sensorModeIndex, targetCam.activeMount);
@@ -99,6 +131,18 @@ export default function ExportPanel() {
     const fov = computeFov(sensor, focalLength, targetCam.focusDistance, targetCam.extenderActive, lensDef.squeeze ?? 1);
     const dof = computeDof(sensor, focalLength, targetCam.aperture, targetCam.focusDistance, targetCam.extenderActive);
     const personPx = personHeightInFrame(sensor.heightMm, focalLength * targetCam.extenderActive, targetCam.focusDistance);
+    const rigging = riggingLines(targetCam, units);
+    const comms = commsLines(targetCam);
+    const kit = kitLines(targetCam);
+    const deckung = reachReport({
+      cameras: [targetCam],
+      persons,
+      optics: () => ({ sensor, lens: lensDef }),
+    }).rows[0] ?? null;
+    const deckungZeilen = coverageLines(deckung, units);
+    const bildZeilen = [...paintLines(targetCam), ...registryLines(targetCam)];
+    const shading = shadingLines(targetCam);
+    const notes = (targetCam.notes ?? '').trim();
 
     // Apply override to the store so the live preview/2D/3D paint with the right state,
     // then wait one frame so the canvases update before we capture them.
@@ -108,7 +152,7 @@ export default function ExportPanel() {
     const needFocalChange = opts?.focalOverride !== undefined && opts.focalOverride !== originalFocal;
 
     if (needSelectionChange) useStore.getState().selectCamera(targetCam.id);
-    if (needFocalChange) useStore.getState().updateCamera(targetCam.id, { focalLength });
+    if (needFocalChange) setExportFocal(targetCam.id, focalLength);
     const extra = opts?.extraSettleMs ?? 0;
     if (needSelectionChange || needFocalChange || extra > 0) await waitForPaint(250 + extra);
 
@@ -118,7 +162,27 @@ export default function ExportPanel() {
     const headerH = 80;
     const tileW = (EW - padding * 3) / 2;
     const tileH = Math.round(tileW * 9 / 16);
-    const calcH = 260;
+    const lineH = 22;
+    const sectionHeight = (rows: number, visible = true) => visible ? 8 + lineH + rows * lineH : 0;
+    const noteLines = notes
+      ? notes.split('\n').reduce((count, line) => count + Math.max(1, Math.ceil(line.length / 70)), 0)
+      : 0;
+    const calcContentH = 50 + lineH + 4
+      + (16 + (adapterInfo ? 1 : 0)) * lineH + 6
+      + sectionHeight(rigging.length)
+      + sectionHeight(comms.length)
+      + sectionHeight(kit.length, kit.length > 0)
+      + sectionHeight(deckungZeilen.length, deckungZeilen.length > 0)
+      + sectionHeight(bildZeilen.length, bildZeilen.length > 0)
+      + sectionHeight(shading.length)
+      + (notes ? 8 + lineH + noteLines * 16 : 0)
+      + 16;
+    const calcTileH = Math.max(tileH, calcContentH);
+    const listedCameraCount = cameras.filter((camera) => (
+      getCameraById(camera.cameraId, useStore.getState().customCameras)
+      && getLensById(camera.lensId, useStore.getState().customLenses)
+    )).length;
+    const summaryH = Math.max(80, 64 + Math.ceil(listedCameraCount / 3) * 18);
     // Eigenes Band fuer die Stempelzeile (ADR-004). Der vorhandene
     // `padding`-Streifen unten sind 20 px -- eine 13-px-Zeile daringequetscht
     // klebte am Rand und waere beim Beschneiden das erste, was wegfaellt.
@@ -130,7 +194,7 @@ export default function ExportPanel() {
     const presetRowH = 18;
     const presetH = presetZeilen.length > 0 ? 40 + presetZeilen.length * presetRowH + 12 : 0;
     const totalH =
-      headerH + padding + tileH + padding + tileH + padding + calcH +
+      headerH + padding + tileH + padding + calcTileH + padding + summaryH +
       (presetH > 0 ? padding + presetH : 0) + padding + stampH;
 
     const out = document.createElement('canvas');
@@ -212,10 +276,10 @@ export default function ExportPanel() {
     const calcX = padding * 2 + tileW;
     const calcY = headerH + padding + tileH + padding;
     ctx.fillStyle = '#1a1d27';
-    ctx.fillRect(calcX, calcY, tileW, tileH);
+    ctx.fillRect(calcX, calcY, tileW, calcTileH);
     ctx.strokeStyle = '#2a2d3a';
     ctx.lineWidth = 2;
-    ctx.strokeRect(calcX, calcY, tileW, tileH);
+    ctx.strokeRect(calcX, calcY, tileW, calcTileH);
 
     ctx.fillStyle = '#000000aa';
     ctx.fillRect(calcX, calcY, 200, 28);
@@ -226,8 +290,6 @@ export default function ExportPanel() {
 
     const cx = calcX + 20;
     let cy = calcY + 50;
-    const lineH = 22;
-
     ctx.font = 'bold 15px monospace';
     ctx.fillStyle = '#3b82f6';
     ctx.fillText(t('preview.export.cameraOptics', 'CAMERA & OPTICS'), cx, cy); cy += lineH + 4;
@@ -281,7 +343,7 @@ export default function ExportPanel() {
     cy += lineH;
     ctx.font = '13px monospace';
     ctx.fillStyle = '#e5e7eb';
-    for (const line of riggingLines(targetCam, units)) {
+    for (const line of rigging) {
       ctx.fillStyle = line.includes(UNSTATED) ? '#f59e0b' : '#e5e7eb';
       ctx.fillText(line, cx, cy);
       cy += lineH;
@@ -293,13 +355,12 @@ export default function ExportPanel() {
     ctx.fillText('COMMS', cx, cy);
     cy += lineH;
     ctx.font = '13px monospace';
-    for (const line of commsLines(targetCam)) {
+    for (const line of comms) {
       ctx.fillStyle = line.includes(UNSTATED) ? '#f59e0b' : '#e5e7eb';
       ctx.fillText(line, cx, cy);
       cy += lineH;
     }
 
-    const kit = kitLines(targetCam);
     if (kit.length > 0) {
       cy += 8;
       ctx.fillStyle = '#3b82f6';
@@ -321,12 +382,6 @@ export default function ExportPanel() {
     // Leiste. Ohne Auftrag steht hier NICHTS — anders als bei Rigging und
     // Comms fehlt hier keine Angabe, sondern eine Anforderung, die niemand
     // gestellt hat.
-    const deckung = reachReport({
-      cameras: [targetCam],
-      persons,
-      optics: () => ({ sensor, lens: lensDef }),
-    }).rows[0] ?? null;
-    const deckungZeilen = coverageLines(deckung, units);
     if (deckungZeilen.length > 0) {
       cy += 8;
       ctx.fillStyle = '#3b82f6';
@@ -351,7 +406,6 @@ export default function ExportPanel() {
     // Bedarf 47 — Platz und Body-Nummer stehen im selben Block wie der
     // Bildzustand: „wo ist er" ist die zweite Haelfte derselben Frage, und
     // ein eigener Kasten daneben zerrisse sie.
-    const bildZeilen = [...paintLines(targetCam), ...registryLines(targetCam)];
     if (bildZeilen.length > 0) {
       cy += 8;
       ctx.fillStyle = '#3b82f6';
@@ -377,14 +431,13 @@ export default function ExportPanel() {
     ctx.fillText('SCHATTIERUNG', cx, cy);
     cy += lineH;
     ctx.font = '13px monospace';
-    for (const line of shadingLines(targetCam)) {
+    for (const line of shading) {
       ctx.fillStyle = line.includes(UNSTATED) ? '#f59e0b' : '#e5e7eb';
       ctx.fillText(line, cx, cy);
       cy += lineH;
     }
 
     // ── Notes (only if filled) ──
-    const notes = (targetCam.notes ?? '').trim();
     if (notes) {
       cy += 8;
       ctx.fillStyle = '#3b82f6';
@@ -418,26 +471,20 @@ export default function ExportPanel() {
         return out;
       };
 
-      const tileBottom = calcY + tileH - 8;
       const wrappedLines = wrap(notes);
       for (const line of wrappedLines) {
-        if (cy > tileBottom) {
-          ctx.fillStyle = '#6b7280';
-          ctx.fillText('…', cx, cy);
-          break;
-        }
         ctx.fillText(line, cx, cy);
         cy += noteLineH;
       }
     }
 
     // ── Camera list summary ──
-    const summaryY = headerH + padding + tileH + padding + tileH + padding;
+    const summaryY = calcY + calcTileH + padding;
     ctx.fillStyle = '#1a1d27';
-    ctx.fillRect(padding, summaryY, EW - padding * 2, calcH);
+    ctx.fillRect(padding, summaryY, EW - padding * 2, summaryH);
     ctx.strokeStyle = '#2a2d3a';
     ctx.lineWidth = 2;
-    ctx.strokeRect(padding, summaryY, EW - padding * 2, calcH);
+    ctx.strokeRect(padding, summaryY, EW - padding * 2, summaryH);
 
     ctx.fillStyle = '#3b82f6';
     ctx.font = 'bold 15px monospace';
@@ -466,7 +513,7 @@ export default function ExportPanel() {
     // Bedarfs, plus Optik (ein Shot ohne Brennweite ist nicht nachstellbar)
     // und Stand (nur damit ist „ist das noch aktuell?" beantwortbar).
     if (presetH > 0) {
-      const py = summaryY + calcH + padding;
+      const py = summaryY + summaryH + padding;
       ctx.fillStyle = '#1a1d27';
       ctx.fillRect(padding, py, EW - padding * 2, presetH);
       ctx.strokeStyle = '#2a2d3a';
@@ -556,24 +603,18 @@ export default function ExportPanel() {
     ctx.font = '13px monospace';
     ctx.fillText(stampLine(stamp), padding, totalH - stampH + 18);
 
-    // ── Download ──
+    // ── Artifact ──
     const filename = `${targetCam.label.replace(/\s+/g, '_')}${opts?.variantLabel ? `_${opts.variantLabel.replace(/\s+/g, '_')}` : ''}_${venue.name.replace(/[^a-zA-Z0-9_-]/g, '_')}_v${projectVersion}.png`;
-    await new Promise<void>((resolve) => {
+    const blob = await new Promise<Blob | null>((resolve) => {
       out.toBlob((blob) => {
-        if (!blob) { resolve(); return; }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-        resolve();
+        resolve(blob);
       }, 'image/png');
     });
 
     // ── Restore overrides ──
-    if (needFocalChange) useStore.getState().updateCamera(targetCam.id, { focalLength: originalFocal });
+    if (needFocalChange) setExportFocal(targetCam.id, originalFocal);
     if (needSelectionChange) useStore.getState().selectCamera(originalSelected);
+    return blob ? { filename, blob } satisfies ExportArtifact : null;
   }, [cameras, venue, persons, projectVersion, capture2DCanvas, capture3DCanvas, capturePreviewCanvas, waitForPaint, t, length, units]);
 
   const generateExport = useCallback(async (mode: ExportMode = 'current') => {
@@ -612,33 +653,20 @@ export default function ExportPanel() {
     }
 
     const originalSelected = state.selectedCameraId;
+    const originalFocals = new Map(state.cameras.map((camera) => [camera.id, camera.focalLength]));
     const wantsWideTele = mode === 'widetele' || mode === 'all-widetele';
 
-    // Build the work queue
-    type Job = { cam: VenueCamera; focalOverride?: number; variantLabel?: string };
-    const jobs: Job[] = [];
-    for (const tc of targetCams) {
-      if (wantsWideTele) {
-        const lens = getLensById(tc.lensId, useStore.getState().customLenses);
-        if (!lens) { jobs.push({ cam: tc }); continue; }
-        if (lens.focalLengthMin === lens.focalLengthMax) {
-          // Prime — just one export
-          jobs.push({ cam: tc, variantLabel: `${lens.focalLengthMin}mm` });
-        } else {
-          jobs.push({ cam: tc, focalOverride: lens.focalLengthMin, variantLabel: `wide_${lens.focalLengthMin}mm` });
-          jobs.push({ cam: tc, focalOverride: lens.focalLengthMax, variantLabel: `tele_${lens.focalLengthMax}mm` });
-        }
-      } else {
-        jobs.push({ cam: tc });
-      }
-    }
+    const jobs = cameraExportJobs(targetCams, wantsWideTele, (camera) => (
+      getLensById(camera.lensId, useStore.getState().customLenses)
+    ));
 
     setExportProgress({ current: 0, total: jobs.length });
 
+    const artifacts: ExportArtifact[] = [];
     try {
       for (let i = 0; i < jobs.length; i++) {
         setExportProgress({ current: i + 1, total: jobs.length });
-        await renderOne(jobs[i].cam, {
+        const artifact = await renderOne(jobs[i].cam, {
           focalOverride: jobs[i].focalOverride,
           variantLabel: jobs[i].variantLabel,
           // The first capture in the batch needs extra settle time so the WebGL
@@ -646,11 +674,24 @@ export default function ExportPanel() {
           // actually paints visible content before drawImage reads from it.
           extraSettleMs: i === 0 ? 400 : 0,
         });
+        if (artifact) artifacts.push(artifact);
+      }
+
+      if (artifacts.length === 1 && mode === 'current') {
+        downloadBlob(artifacts[0].blob, artifacts[0].filename);
+      } else if (artifacts.length > 0) {
+        const archive = await createZip(artifacts.map((artifact) => ({ name: artifact.filename, data: artifact.blob })));
+        const safeVenue = state.venue.name.replace(/[^a-zA-Z0-9_-]/g, '_') || 'Venue';
+        downloadBlob(archive, `${safeVenue}_camera_exports_v${state.projectVersion}.zip`);
+      }
+      if (artifacts.length !== jobs.length) {
+        alert(format(t('preview.export.incomplete', 'Exported {done} of {total} images. Check that every camera and lens still exists.'), { done: artifacts.length, total: jobs.length }));
       }
     } finally {
       // Restore original selection (renderOne handles per-camera restore but final
       // cleanup ensures we land on whatever was selected before the batch).
       useStore.getState().selectCamera(originalSelected);
+      for (const [cameraId, focalLength] of originalFocals) setExportFocal(cameraId, focalLength);
       if (framingApi && savedFraming) {
         try { framingApi.apply(savedFraming); } catch { /* ignore */ }
       }

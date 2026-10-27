@@ -34,6 +34,7 @@ import { defaultWallHeight, migrateWallHeights } from '../utils/wallHeight';
 import { adoptLegacyShotlists, normaliseShotlists } from './legacyShotlists';
 import type { PlanVorschau } from '../lib/planVorschau';
 import { neueSitzflaeche, neueVideowand, platzFuerPerson, venueAusDatei } from '../utils/raum';
+import { isTransientProjectState } from './transientProjectState';
 
 // Injected by Vite from package.json. In a release build that came through
 // the GitHub Actions workflow this matches the git release tag exactly,
@@ -1476,6 +1477,7 @@ export const useStore = create<AppState>((set, get) => ({
 // Strg+Z, Schliessen — weg. Dieses Netz zaehlt fuer sie mit. Oeffnen und Neu
 // (`projectEpoch`) setzen die Version bewusst selbst und bleiben aussen vor.
 useStore.subscribe((s, prev) => {
+  if (isTransientProjectState()) return;
   if (s.projectEpoch !== prev.projectEpoch || s.projectVersion !== prev.projectVersion) return;
   if (HISTORY_KEYS.some((k) => s[k] !== prev[k])) useStore.setState({ projectVersion: s.projectVersion + 1 });
 });
