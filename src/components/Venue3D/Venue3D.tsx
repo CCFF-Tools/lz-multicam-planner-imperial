@@ -29,7 +29,7 @@ import { useIstHell } from '../../lib/useIstHell';
 import { CoverageWedge, ScenePipeline } from './ShowScene';
 import { SzenenGrund } from '../Render3D/SzenenGrund';
 import { pipelineQualitaet, renderLook } from '../Render3D/renderLook';
-import { entsorgeKameraCache, stufenWerte, type Detail, type Stufe, type StufenWerte, type Tally } from '../../avplan/scene3d';
+import { stufenWerte, type Detail, type Stufe, type StufenWerte, type Tally } from '../../avplan/scene3d';
 import { kameraModell, type KameraModell } from '../../utils/kameraModell';
 import { Bediener } from './KameraModell';
 import { useKameraRig } from './useKameraRig';
@@ -1074,8 +1074,6 @@ export default function Venue3D() {
     }
     return m;
   }, [cameras, fovById, detail, programCameraId, selectedCameraId, venue.ceilingHeightM]);
-  useEffect(() => () => entsorgeKameraCache(), []);
-
   const diag = Math.hypot(venue.widthM, venue.heightM);
   const labelSize = Math.min(2.2, Math.max(0.35, diag / 55));
 

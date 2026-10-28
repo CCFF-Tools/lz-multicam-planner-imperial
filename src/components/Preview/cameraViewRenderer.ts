@@ -889,7 +889,8 @@ export function drawCameraView(args: DrawCameraViewArgs): ProjectedPerson[] | un
   // ── Draw other cameras ──
   cameras.forEach((otherCam) => {
     if (otherCam.id === cam.id) return;
-    const pos = worldToScreen(otherCam.x, otherCam.y, otherCam.z);
+    const effective = effectiveCameraPos(otherCam);
+    const pos = worldToScreen(effective.x, effective.y, otherCam.z);
     if (pos.behindCamera) return;
 
     const sz = Math.max(4, Math.min(12, 80 / pos.dist));
