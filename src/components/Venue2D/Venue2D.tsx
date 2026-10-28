@@ -28,6 +28,7 @@ import PlanVisibilityBar from './PlanVisibilityBar';
 import { DEFAULT_PLAN_VISIBILITY, type PlanVisibilityKey } from './planVisibility';
 import RaumOverlay, { type RaumAuswahl } from './RaumOverlay';
 import { defaultWallControlPoint, wallPathPoints, wallPoint } from '../../utils/wallPath';
+import { planExportBounds } from '../../utils/planExportBounds';
 import { ceilingZoneId, DEFAULT_CEILING_HEIGHT_M, DEFAULT_CEILING_MATERIAL } from '../../utils/ceiling';
 
 // Shared style for context-menu items (issue #38).
@@ -260,16 +261,32 @@ export default function Venue2D() {
     registry.capture2DExport = () => {
       const stage = stageRef.current;
       if (!stage) return null;
+      const previousPosition = stage.position();
+      const previousScale = stage.scale();
       try {
+        const bounds = planExportBounds(
+          worldW,
+          worldH,
+          stage.getClientRect({ skipTransform: true }),
+        );
+        // Export in stable world coordinates. Capturing the interactive
+        // pan/zoom transform could cut off room edges, cameras, or labels when
+        // the user had moved the plan before exporting.
+        stage.position({ x: bounds.stageX, y: bounds.stageY });
+        stage.scale({ x: 1, y: 1 });
         return stage.toCanvas({
           x: 0,
           y: 0,
-          width: worldW,
-          height: worldH,
+          width: bounds.width,
+          height: bounds.height,
           pixelRatio: 2,
         }) as HTMLCanvasElement;
       } catch {
         return null;
+      } finally {
+        stage.position(previousPosition);
+        stage.scale(previousScale);
+        stage.batchDraw();
       }
     };
     return () => { registry.capture2DExport = null; };
