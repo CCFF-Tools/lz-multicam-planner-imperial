@@ -74,6 +74,36 @@ export function wandOeffnungStuecke(
   return stueckeImIntervall(w, from, to, bottom, height);
 }
 
+/** Vertical reveal faces at the left and right edges of valid openings. */
+export function wandOeffnungsLaibungen(w: Wall, hoeheM: number): WandStueck[] {
+  return (w.openings ?? []).flatMap((opening) => {
+    const bottom = Math.max(0, Math.min(hoeheM, opening.bottom));
+    const top = Math.max(0, Math.min(hoeheM, opening.top));
+    const pieces = wandOeffnungStuecke(w, { ...opening, bottom, top });
+    if (pieces.length === 0) return [];
+    const first = pieces[0];
+    const last = pieces[pieces.length - 1];
+    return [
+      {
+        x: first.x - Math.cos(first.winkel) * first.laenge / 2,
+        y: first.y - Math.sin(first.winkel) * first.laenge / 2,
+        unten: bottom,
+        hoehe: top - bottom,
+        laenge: 0,
+        winkel: first.winkel,
+      },
+      {
+        x: last.x + Math.cos(last.winkel) * last.laenge / 2,
+        y: last.y + Math.sin(last.winkel) * last.laenge / 2,
+        unten: bottom,
+        hoehe: top - bottom,
+        laenge: 0,
+        winkel: last.winkel,
+      },
+    ];
+  });
+}
+
 /**
  * Die Quader einer Wand. Ohne Öffnungen ist es genau einer — dieselbe Lage
  * wie bisher, damit sich an bestehenden Projekten nichts verschiebt.

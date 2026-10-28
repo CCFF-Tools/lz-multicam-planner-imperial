@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { dxfLesen, istDxfDatei, planErkennen } from '../avplan/floorplan';
 import { vorschauAusPlan } from '../lib/planLauf';
 import { vorschauImBereich } from '../lib/planVorschau';
-import { wandDicke, wandOeffnungStuecke, wandStuecke } from '../utils/wallOpenings';
+import { wandDicke, wandOeffnungStuecke, wandOeffnungsLaibungen, wandStuecke } from '../utils/wallOpenings';
+import { wallBoxGeometry } from '../utils/wallGeometry';
 import type { BackgroundPlan, Wall } from '../types';
 
 // Ein DXF in Millimetern: Raum 6,00 × 4,00 m lichte Weite, 24 cm Wand, eine
@@ -153,6 +154,29 @@ describe('Wand mit Öffnungen als Quader', () => {
     const angledPiece = wandOeffnungStuecke(angled, { offset: 1, width: 1, bottom: 0, top: 2, kind: 'door' });
     expect(angledPiece).toHaveLength(1);
     expect(angledPiece[0].winkel).toBeCloseTo(Math.atan2(3, 4), 8);
+  });
+
+  it('keeps only real wall ends and opening-height jamb faces', () => {
+    const wall = wand([{ offset: 1, width: 1, bottom: 0.8, top: 2.2, kind: 'window' }]);
+    const reveals = wandOeffnungsLaibungen(wall, 3);
+    expect(reveals).toHaveLength(2);
+    expect(reveals.map((reveal) => reveal.x)).toEqual([1, 2]);
+    expect(reveals.every((reveal) => reveal.unten === 0.8)).toBe(true);
+    expect(reveals.every((reveal) => Math.abs(reveal.hoehe - 1.4) < 1e-9)).toBe(true);
+
+    const curvedReveals = wandOeffnungsLaibungen({ ...wall, cx: 2, cy: 2 }, 3);
+    expect(curvedReveals).toHaveLength(2);
+    expect(curvedReveals[0].winkel).not.toBeCloseTo(curvedReveals[1].winkel, 4);
+
+    const noCaps = wallBoxGeometry(2, 3, 0.15, { start: false, end: false });
+    const startOnly = wallBoxGeometry(2, 3, 0.15, { start: true, end: false });
+    const bothCaps = wallBoxGeometry(2, 3, 0.15, { start: true, end: true });
+    expect(noCaps.getIndex()?.count).toBe(24);
+    expect(startOnly.getIndex()?.count).toBe(30);
+    expect(bothCaps.getIndex()?.count).toBe(36);
+    noCaps.dispose();
+    startOnly.dispose();
+    bothCaps.dispose();
   });
 });
 
