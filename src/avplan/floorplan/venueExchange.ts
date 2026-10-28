@@ -36,6 +36,10 @@ export interface VenueWallOpening {
   label?: string
   material?: 'solid' | 'wood' | 'metal' | 'glass'
   color?: string
+  /** Door handing viewed along the wall path from (x1,y1) to (x2,y2). */
+  doorSwing?: 'left-in' | 'right-in' | 'left-out' | 'right-out'
+  /** Physical hardware. When omitted, glass doors use pulls and other doors use levers. */
+  doorHardware?: 'lever' | 'pull' | 'panic' | 'none'
 }
 export interface VenueExchangeWall {
   id: string; x1: number; y1: number; x2: number; y2: number; height: number

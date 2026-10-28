@@ -21,7 +21,7 @@ import { useTranslation, format } from '../../i18n';
 import { useIstHell } from '../../lib/useIstHell';
 import { planAblage } from '../../avplan/floorplan';
 import PlanVorschauOverlay from './PlanVorschauOverlay';
-import { wandDicke, wandOeffnungStuecke } from '../../utils/wallOpenings';
+import { doorPlanSymbol, wandDicke, wandOeffnungStuecke } from '../../utils/wallOpenings';
 import { planItemLabel } from '../../utils/planItemLabel';
 import { usePlanLaden } from '../../lib/usePlanLaden';
 import EditGroupsBar from './EditGroupsBar';
@@ -1009,6 +1009,7 @@ export default function Venue2D() {
               const pieces = wandOeffnungStuecke(w, opening);
               const glass = opening.kind === 'window' || opening.material === 'glass';
               const color = glass ? '#38bdf8' : (opening.color ?? (opening.material === 'metal' ? '#94a3b8' : '#8b5a2b'));
+              const swing = opening.kind === 'door' ? doorPlanSymbol(w, opening) : null;
               const centre = pieces.length > 0
                 ? { x: pieces.reduce((sum, piece) => sum + piece.x * piece.laenge, 0) / pieces.reduce((sum, piece) => sum + piece.laenge, 0), y: pieces.reduce((sum, piece) => sum + piece.y * piece.laenge, 0) / pieces.reduce((sum, piece) => sum + piece.laenge, 0) }
                 : null;
@@ -1019,6 +1020,24 @@ export default function Venue2D() {
                     const dy = Math.sin(piece.winkel) * piece.laenge * ppm / 2;
                     return <Line key={pieceIndex} points={[piece.x * ppm - dx, piece.y * ppm - dy, piece.x * ppm + dx, piece.y * ppm + dy]} stroke={color} strokeWidth={Math.max(3, wandDicke(w) * ppm * 0.7)} dash={glass ? [5, 3] : undefined} listening={false} />;
                   })}
+                  {swing && (
+                    <>
+                      <Line
+                        points={[swing.hinge.x * ppm, swing.hinge.y * ppm, swing.openLatch.x * ppm, swing.openLatch.y * ppm]}
+                        stroke={color}
+                        strokeWidth={2}
+                        listening={false}
+                      />
+                      <Line
+                        points={swing.arc.flatMap((point) => [point.x * ppm, point.y * ppm])}
+                        stroke={color}
+                        strokeWidth={1}
+                        dash={[4, 3]}
+                        opacity={0.8}
+                        listening={false}
+                      />
+                    </>
+                  )}
                   {centre && <Text x={centre.x * ppm - 10} y={centre.y * ppm - 6} width={20} text={opening.kind === 'window' ? 'W' : opening.kind === 'door' ? 'D' : 'O'} fontSize={8} fontStyle="bold" fill={color} align="center" listening={false} />}
                 </React.Fragment>
               );
