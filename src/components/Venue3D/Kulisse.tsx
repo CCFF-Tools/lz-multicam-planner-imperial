@@ -2,13 +2,44 @@
 // LED-Waende und gezeichnete Waende. Die 3D-Ansicht legt ihre Werkzeuge
 // (Raster, Abdeckung, Kameras) darueber; die gerenderten Kamerabilder in
 // Vorschau und Multiview zeigen genau diese Kulisse (#167, #168).
-import type { ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import type { Stage } from '../../types';
+import type { RaumWand } from '../../avplan/floorplan';
 import type { StufenWerte } from '../../avplan/scene3d';
 import { istSpielfeld } from '../../utils/showRig';
-import { wandDicke, wandOeffnungStuecke, wandStuecke } from '../../utils/wallOpenings';
+import { wandDicke, wandOeffnungStuecke, wandOeffnungsLaibungen, wandStuecke } from '../../utils/wallOpenings';
+import { wallBoxGeometry } from '../../utils/wallGeometry';
+import { wallIsCurved, wallPathLength } from '../../utils/wallPath';
 import { Arena, CrowdAndSeating, FieldMesh, LedWalls, ShowRig, StageBodyReal, WallSurfaceMaterial } from './ShowScene';
 import type { KulissenDaten } from './kulissenDaten';
+
+function WallBoxGeometry({ lengthM, heightM, thicknessM, startCap, endCap }: {
+  lengthM: number;
+  heightM: number;
+  thicknessM: number;
+  startCap: boolean;
+  endCap: boolean;
+}) {
+  const geometry = useMemo(
+    () => wallBoxGeometry(lengthM, heightM, thicknessM, { start: startCap, end: endCap }),
+    [lengthM, heightM, thicknessM, startCap, endCap],
+  );
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return <primitive object={geometry} attach="geometry" />;
+}
+
+function WallMaterial({ art, lengthM, heightM, color, show }: {
+  art?: RaumWand;
+  lengthM: number;
+  heightM: number;
+  color?: string;
+  show: boolean;
+}) {
+  if (art) return <WallSurfaceMaterial art={art} laengeM={lengthM} hoeheM={heightM} farbe={color} />;
+  return show
+    ? <meshStandardMaterial color={color ?? '#3a3d42'} roughness={0.9} />
+    : <meshStandardMaterial color={color ?? '#6b7280'} opacity={0.6} transparent />;
+}
 
 export function Kulisse({ daten, show, tageslicht = false, simple, werte, audience, planungsBoden, einfacheBuehne, cameraView = false }: {
   daten: KulissenDaten;
@@ -70,16 +101,26 @@ export function Kulisse({ daten, show, tageslicht = false, simple, werte, audien
 
       {walls.map((w) => {
         const dicke = wandDicke(w);
+        const curved = wallIsCurved(w);
+        const pathLength = wallPathLength(w);
+        const direction = pathLength > 1e-6 ? { x: (w.x2 - w.x1) / pathLength, y: (w.y2 - w.y1) / pathLength } : { x: 1, y: 0 };
         return (
           <group key={w.id}>
-            {wandStuecke(w, w.height).map((st, i) => (
-              <mesh key={`wall-${i}`} position={[st.x, st.unten + st.hoehe / 2, st.y]} rotation={[0, -st.winkel, 0]}>
-                <boxGeometry args={[st.laenge, st.hoehe, dicke]} />
-                {venue.wallMaterial
-                  ? <WallSurfaceMaterial art={venue.wallMaterial} laengeM={st.laenge} hoeheM={st.hoehe} farbe={w.color} />
-                  : show
-                  ? <meshStandardMaterial color={w.color ?? '#3a3d42'} roughness={0.9} />
-                  : <meshStandardMaterial color={w.color ?? '#6b7280'} opacity={0.6} transparent />}
+            {wandStuecke(w, w.height).map((st, i) => {
+              const along = (st.x - w.x1) * direction.x + (st.y - w.y1) * direction.y;
+              const startCap = curved || along - st.laenge / 2 <= 1e-5;
+              const endCap = curved || along + st.laenge / 2 >= pathLength - 1e-5;
+              return (
+                <mesh key={`wall-${i}`} position={[st.x, st.unten + st.hoehe / 2, st.y]} rotation={[0, -st.winkel, 0]}>
+                  <WallBoxGeometry lengthM={st.laenge} heightM={st.hoehe} thicknessM={dicke} startCap={startCap} endCap={endCap} />
+                  <WallMaterial art={venue.wallMaterial} lengthM={st.laenge} heightM={st.hoehe} color={w.color} show={show} />
+                </mesh>
+              );
+            })}
+            {!curved && wandOeffnungsLaibungen(w, w.height).map((cap, index) => (
+              <mesh key={`reveal-${index}`} position={[cap.x, cap.unten + cap.hoehe / 2, cap.y]} rotation={[0, -cap.winkel, 0]}>
+                <boxGeometry args={[0.004, cap.hoehe, dicke]} />
+                <WallMaterial art={venue.wallMaterial} lengthM={dicke} heightM={cap.hoehe} color={w.color} show={show} />
               </mesh>
             ))}
             {(w.openings ?? []).flatMap((opening, openingIndex) => {
