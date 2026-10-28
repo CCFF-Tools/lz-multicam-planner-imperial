@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dxfLesen, istDxfDatei, planErkennen } from '../avplan/floorplan';
 import { vorschauAusPlan } from '../lib/planLauf';
 import { vorschauImBereich } from '../lib/planVorschau';
-import { wandDicke, wandOeffnungStuecke, wandOeffnungsLaibungen, wandStuecke } from '../utils/wallOpenings';
+import { doorHardwarePlacement, doorPlanSymbol, resolvedDoorHardware, wandDicke, wandOeffnungStuecke, wandOeffnungsLaibungen, wandStuecke } from '../utils/wallOpenings';
 import { wallBoxGeometry } from '../utils/wallGeometry';
 import type { BackgroundPlan, Wall } from '../types';
 
@@ -128,6 +128,35 @@ describe('Wand mit Öffnungen als Quader', () => {
     expect(s.map((x) => [x.unten, +x.hoehe.toFixed(2)])).toEqual([[0, 0.9], [2.3, 0.7]]);
   });
 
+  it('cuts vertically stacked windows without rebuilding wall through either pane', () => {
+    const s = wandStuecke(wand([
+      { offset: 1, width: 1, bottom: 0, top: 1.6, kind: 'window' },
+      { offset: 0.5, width: 2, bottom: 2, top: 2.6, kind: 'window' },
+    ]), 3);
+    const contains = (x: number, z: number) => s.some((piece) => (
+      x >= piece.x - piece.laenge / 2 - 1e-6
+      && x <= piece.x + piece.laenge / 2 + 1e-6
+      && z >= piece.unten - 1e-6
+      && z <= piece.unten + piece.hoehe + 1e-6
+    ));
+    expect(contains(1.5, 0.8)).toBe(false);
+    expect(contains(1.5, 1.8)).toBe(true);
+    expect(contains(1.5, 2.3)).toBe(false);
+    expect(contains(1.5, 2.8)).toBe(true);
+    expect(contains(0.75, 1)).toBe(true);
+    expect(contains(0.75, 2.3)).toBe(false);
+  });
+
+  it('unions genuinely overlapping openings instead of layering wall or glass ranges', () => {
+    const s = wandStuecke(wand([
+      { offset: 1, width: 1, bottom: 0.4, top: 1.8, kind: 'window' },
+      { offset: 1, width: 1, bottom: 1.2, top: 2.5, kind: 'window' },
+    ]), 3);
+    const centre = s.filter((piece) => Math.abs(piece.x - 1.5) < 1e-6);
+    expect(centre).toHaveLength(2);
+    expect(centre.map((piece) => [piece.unten, piece.hoehe])).toEqual([[0, 0.4], [2.5, 0.5]]);
+  });
+
   it('ignoriert Öffnungen, die höher als die Wand liegen', () => {
     expect(wandStuecke(wand([{ offset: 1, width: 1, bottom: 4, top: 5 }]), 3)).toHaveLength(1);
   });
@@ -177,6 +206,35 @@ describe('Wand mit Öffnungen als Quader', () => {
     noCaps.dispose();
     startOnly.dispose();
     bothCaps.dispose();
+  });
+
+  it('draws all four door handing and swing combinations on the correct side', () => {
+    const wall = wand(undefined);
+    const opening = { offset: 1, width: 1, bottom: 0, top: 2.1, kind: 'door' as const };
+    const leftIn = doorPlanSymbol(wall, { ...opening, doorSwing: 'left-in' })!;
+    const rightIn = doorPlanSymbol(wall, { ...opening, doorSwing: 'right-in' })!;
+    const leftOut = doorPlanSymbol(wall, { ...opening, doorSwing: 'left-out' })!;
+    const rightOut = doorPlanSymbol(wall, { ...opening, doorSwing: 'right-out' })!;
+    expect(leftIn.hinge.x).toBeCloseTo(1, 6);
+    expect(rightIn.hinge.x).toBeCloseTo(2, 6);
+    expect(leftIn.openLatch.x).toBeCloseTo(1, 6);
+    expect(leftIn.openLatch.y).toBeCloseTo(1, 6);
+    expect(rightIn.openLatch.x).toBeCloseTo(2, 6);
+    expect(rightIn.openLatch.y).toBeCloseTo(1, 6);
+    expect(leftOut.openLatch.y).toBeCloseTo(-1, 6);
+    expect(rightOut.openLatch.y).toBeCloseTo(-1, 6);
+  });
+
+  it('places hardware at the latch edge and supplies compatible automatic defaults', () => {
+    const wall = wand(undefined);
+    const opening = { offset: 1, width: 1, bottom: 0, top: 2.1, kind: 'door' as const };
+    const left = doorHardwarePlacement(wall, { ...opening, doorSwing: 'left-in' })!;
+    const right = doorHardwarePlacement(wall, { ...opening, doorSwing: 'right-in' })!;
+    expect(left.x).toBeGreaterThan(right.x);
+    expect(left.height).toBeCloseTo(1, 6);
+    expect(resolvedDoorHardware({ ...opening, material: 'glass' })).toBe('pull');
+    expect(resolvedDoorHardware({ ...opening, material: 'wood' })).toBe('lever');
+    expect(resolvedDoorHardware({ ...opening, material: 'glass', doorHardware: 'panic' })).toBe('panic');
   });
 });
 

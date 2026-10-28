@@ -24,7 +24,7 @@ const persons: ReferencePerson[] = [
 ];
 const walls: Wall[] = [
   { id: 'w1', x1: 0, y1: 0, x2: 24, y2: 0, height: 3, label: 'Nordwand', openings: [
-    { id: 'door-1', label: 'Main door', kind: 'door', offset: 2, width: 0.9, bottom: 0, top: 2.1, material: 'wood', color: '#80552f' },
+    { id: 'door-1', label: 'Main door', kind: 'door', offset: 2, width: 0.9, bottom: 0, top: 2.1, material: 'wood', color: '#80552f', doorSwing: 'right-out', doorHardware: 'panic' },
     { id: 'window-1', label: 'Fixed window', kind: 'window', offset: 6, width: 1.4, bottom: 0.9, top: 2.2, material: 'glass' },
   ] },
 ];

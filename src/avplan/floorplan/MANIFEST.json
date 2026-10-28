@@ -19,11 +19,11 @@
     "typen.ts": "9f705653b1bc6d4a6a9e26da6dfbf85fd7c86e0b6e4bd8a3e5e312906c5175bc",
     "vektor.ts": "244968ca1686479440378340b778633a1b6a57173e31c16319992f8562d8516d",
     "vektorBild.ts": "4f2ff225f3abc62b40b106061c45230d8f2b94ed033f5b3e7797f5128dc6c4b4",
-    "venueExchange.ts": "bcefc8aff0bc37ba63e6d1a643f4c98a765e6bac57113f7ace54dc5d15993d6b"
+    "venueExchange.ts": "b238d8f9bbe0afe18365586c64d820fe06419ca88ce28e586cf4e750ea382a3e"
   },
   "fork": {
     "repository": "CCFF-Tools/lz-multicam-planner-imperial",
-    "reason": "Optional object rotation and 2D annotations, monitor display type and mounting elevation, plus editable door/window finish metadata; upstream files extended for this private fork. Preserve these extensions when redistributing upstream packages.",
+    "reason": "Optional object rotation and 2D annotations, monitor display type and mounting elevation, plus editable door/window finish, swing, and hardware metadata; upstream files extended for this private fork. Preserve these extensions when redistributing upstream packages.",
     "upstreamDigests": {
       "raum.ts": "94db4de18b2151e54e8bde4bbba3bba13af0302e5bd193ca4ceb01f460fef328",
       "venueExchange.ts": "7393075fa3083383b56df5efeeb9fdbea9bf6e8e2135c7fa5c9348f0f117a492"
