@@ -25,6 +25,28 @@ export interface WandStueck {
 
 export const WAND_DICKE_M = 0.15;
 
+export type DoorSwing = NonNullable<VenueWallOpening['doorSwing']>;
+export type DoorHardware = NonNullable<VenueWallOpening['doorHardware']>;
+
+export interface DoorPlanSymbol {
+  hinge: { x: number; y: number };
+  closedLatch: { x: number; y: number };
+  openLatch: { x: number; y: number };
+  arc: { x: number; y: number }[];
+}
+
+export interface DoorHardwarePlacement {
+  x: number;
+  y: number;
+  angle: number;
+  height: number;
+}
+
+export const resolvedDoorSwing = (opening: VenueWallOpening): DoorSwing => opening.doorSwing ?? 'left-in';
+
+export const resolvedDoorHardware = (opening: VenueWallOpening): DoorHardware =>
+  opening.doorHardware ?? (opening.material === 'glass' ? 'pull' : 'lever');
+
 /** Wandstärke dieser Wand; ohne Angabe die bisherige Vorgabe. */
 export const wandDicke = (w: Pick<Wall, 'thicknessM'>): number =>
   typeof w.thicknessM === 'number' && w.thicknessM > 0.01 ? w.thicknessM : WAND_DICKE_M;
@@ -72,6 +94,60 @@ export function wandOeffnungStuecke(
   const height = Math.max(0, opening.top - bottom);
   if (to - from < 1e-6 || height < 1e-6) return [];
   return stueckeImIntervall(w, from, to, bottom, height);
+}
+
+/** Architectural 90-degree swing symbol for a door in plan view. */
+export function doorPlanSymbol(
+  w: Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2' | 'cx' | 'cy'>,
+  opening: VenueWallOpening,
+): DoorPlanSymbol | null {
+  const pieces = wandOeffnungStuecke(w, opening);
+  if (pieces.length === 0) return null;
+  const first = pieces[0];
+  const last = pieces[pieces.length - 1];
+  const start = {
+    x: first.x - Math.cos(first.winkel) * first.laenge / 2,
+    y: first.y - Math.sin(first.winkel) * first.laenge / 2,
+  };
+  const end = {
+    x: last.x + Math.cos(last.winkel) * last.laenge / 2,
+    y: last.y + Math.sin(last.winkel) * last.laenge / 2,
+  };
+  const swing = resolvedDoorSwing(opening);
+  const leftHinge = swing.startsWith('left');
+  const inward = swing.endsWith('in');
+  const hinge = leftHinge ? start : end;
+  const closedLatch = leftHinge ? end : start;
+  const closedAngle = Math.atan2(closedLatch.y - hinge.y, closedLatch.x - hinge.x);
+  // The wall path's left side is "in". Reversing the closed vector for a
+  // right hinge also reverses the signed quarter turn needed to reach it.
+  const direction = (leftHinge === inward) ? 1 : -1;
+  const radius = Math.hypot(closedLatch.x - hinge.x, closedLatch.y - hinge.y);
+  const steps = 12;
+  const arc = Array.from({ length: steps + 1 }, (_, index) => {
+    const angle = closedAngle + direction * Math.PI / 2 * index / steps;
+    return { x: hinge.x + Math.cos(angle) * radius, y: hinge.y + Math.sin(angle) * radius };
+  });
+  return { hinge, closedLatch, openLatch: arc[arc.length - 1], arc };
+}
+
+/** Latch-side placement shared by all 3D door hardware styles. */
+export function doorHardwarePlacement(
+  w: Pick<Wall, 'x1' | 'y1' | 'x2' | 'y2' | 'cx' | 'cy'>,
+  opening: VenueWallOpening,
+): DoorHardwarePlacement | null {
+  const pieces = wandOeffnungStuecke(w, opening);
+  if (pieces.length === 0) return null;
+  const leftHinge = resolvedDoorSwing(opening).startsWith('left');
+  const piece = leftHinge ? pieces[pieces.length - 1] : pieces[0];
+  const endpointSign = leftHinge ? 1 : -1;
+  const inset = Math.min(0.14, piece.laenge * 0.25);
+  return {
+    x: piece.x + Math.cos(piece.winkel) * (endpointSign * (piece.laenge / 2 - inset)),
+    y: piece.y + Math.sin(piece.winkel) * (endpointSign * (piece.laenge / 2 - inset)),
+    angle: piece.winkel,
+    height: opening.bottom + Math.min(1, Math.max(0.55, (opening.top - opening.bottom) * 0.48)),
+  };
 }
 
 /** Vertical reveal faces at the left and right edges of valid openings. */

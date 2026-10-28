@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dxfLesen, istDxfDatei, planErkennen } from '../avplan/floorplan';
 import { vorschauAusPlan } from '../lib/planLauf';
 import { vorschauImBereich } from '../lib/planVorschau';
-import { wandDicke, wandOeffnungStuecke, wandOeffnungsLaibungen, wandStuecke } from '../utils/wallOpenings';
+import { doorHardwarePlacement, doorPlanSymbol, resolvedDoorHardware, wandDicke, wandOeffnungStuecke, wandOeffnungsLaibungen, wandStuecke } from '../utils/wallOpenings';
 import { wallBoxGeometry } from '../utils/wallGeometry';
 import type { BackgroundPlan, Wall } from '../types';
 
@@ -177,6 +177,35 @@ describe('Wand mit Öffnungen als Quader', () => {
     noCaps.dispose();
     startOnly.dispose();
     bothCaps.dispose();
+  });
+
+  it('draws all four door handing and swing combinations on the correct side', () => {
+    const wall = wand(undefined);
+    const opening = { offset: 1, width: 1, bottom: 0, top: 2.1, kind: 'door' as const };
+    const leftIn = doorPlanSymbol(wall, { ...opening, doorSwing: 'left-in' })!;
+    const rightIn = doorPlanSymbol(wall, { ...opening, doorSwing: 'right-in' })!;
+    const leftOut = doorPlanSymbol(wall, { ...opening, doorSwing: 'left-out' })!;
+    const rightOut = doorPlanSymbol(wall, { ...opening, doorSwing: 'right-out' })!;
+    expect(leftIn.hinge.x).toBeCloseTo(1, 6);
+    expect(rightIn.hinge.x).toBeCloseTo(2, 6);
+    expect(leftIn.openLatch.x).toBeCloseTo(1, 6);
+    expect(leftIn.openLatch.y).toBeCloseTo(1, 6);
+    expect(rightIn.openLatch.x).toBeCloseTo(2, 6);
+    expect(rightIn.openLatch.y).toBeCloseTo(1, 6);
+    expect(leftOut.openLatch.y).toBeCloseTo(-1, 6);
+    expect(rightOut.openLatch.y).toBeCloseTo(-1, 6);
+  });
+
+  it('places hardware at the latch edge and supplies compatible automatic defaults', () => {
+    const wall = wand(undefined);
+    const opening = { offset: 1, width: 1, bottom: 0, top: 2.1, kind: 'door' as const };
+    const left = doorHardwarePlacement(wall, { ...opening, doorSwing: 'left-in' })!;
+    const right = doorHardwarePlacement(wall, { ...opening, doorSwing: 'right-in' })!;
+    expect(left.x).toBeGreaterThan(right.x);
+    expect(left.height).toBeCloseTo(1, 6);
+    expect(resolvedDoorHardware({ ...opening, material: 'glass' })).toBe('pull');
+    expect(resolvedDoorHardware({ ...opening, material: 'wood' })).toBe('lever');
+    expect(resolvedDoorHardware({ ...opening, material: 'glass', doorHardware: 'panic' })).toBe('panic');
   });
 });
 

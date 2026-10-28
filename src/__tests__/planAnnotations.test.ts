@@ -17,7 +17,7 @@ const person: ReferencePerson = {
 const wall: Wall = {
   id: 'wall-1', label: 'North wall', x1: 0, y1: 0, x2: 10, y2: 0, height: 3,
   openings: [
-    { id: 'door-1', kind: 'door', offset: 1, width: 0.9, bottom: 0, top: 2.1, material: 'wood', color: '#80552f' },
+    { id: 'door-1', kind: 'door', offset: 1, width: 0.9, bottom: 0, top: 2.1, material: 'wood', color: '#80552f', doorSwing: 'left-out', doorHardware: 'lever' },
     { id: 'window-1', kind: 'window', offset: 4, width: 1.5, bottom: 0.9, top: 2.2, material: 'glass' },
   ],
 };
