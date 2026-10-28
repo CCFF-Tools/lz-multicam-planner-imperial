@@ -265,8 +265,8 @@ export default function Venue2D() {
       const previousScale = stage.scale();
       try {
         const bounds = planExportBounds(
-          worldW,
-          worldH,
+          W,
+          H,
           stage.getClientRect({ skipTransform: true }),
         );
         // Export in stable world coordinates. Capturing the interactive
@@ -290,7 +290,7 @@ export default function Venue2D() {
       }
     };
     return () => { registry.capture2DExport = null; };
-  }, [worldW, worldH]);
+  }, [W, H]);
 
   // Measure container and auto-fit zoom
   useEffect(() => {
