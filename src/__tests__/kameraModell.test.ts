@@ -64,6 +64,16 @@ describe('Kameratyp → Modell', () => {
     expect(drohne.skelett).toBe(true);
   });
 
+  it('allows fixed mounts to override wall/ceiling inference', () => {
+    const model = (over: Partial<VenueCamera>, type: Camera['type'] = 'ptz', ceilingHeightM?: number) =>
+      kameraModell(venueCam({ mountType: 'fixed', ...over }), typ(type), undefined, { detail: 'niedrig', deckeM: ceilingHeightM });
+
+    expect(model({ z: 1.6, fixedMountLocation: 'ceiling' }, 'cinema').optionen.halterung).toBe('decke');
+    expect(model({ z: 4, fixedMountLocation: 'wall' }).optionen.halterung).toBe('wand');
+    expect(model({ z: 2.2, fixedMountLocation: 'auto' }, 'ptz', 3).optionen.halterung).toBe('decke');
+    expect(model({ z: 2.2 }, 'ptz', 5).optionen.halterung).toBe('wand');
+  });
+
   it('setzt den Wagen auf der Schiene an den Fahrweg', () => {
     const m = kameraModell(venueCam({ mountType: 'dolly', trackLengthM: 4.2, trackOffset: 1.5 }), typ('cinema'), undefined, { detail: 'niedrig' });
     expect(m.optionen.schienenLaengeM).toBeCloseTo(4.2);

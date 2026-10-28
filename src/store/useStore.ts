@@ -31,6 +31,7 @@ import { libraryCameras, libraryLenses, setProjectLibraryEntries } from '../libr
 import { translate } from '../i18n';
 import type { VenueSeatingBlock, VenueVideoWall } from '../avplan/floorplan';
 import { defaultWallHeight, migrateWallHeights } from '../utils/wallHeight';
+import { normaliseFixedMountLocation } from '../utils/fixedMount';
 import { adoptLegacyShotlists, normaliseShotlists } from './legacyShotlists';
 import type { PlanVorschau } from '../lib/planVorschau';
 import { neueSitzflaeche, neueVideowand, platzFuerPerson, venueAusDatei } from '../utils/raum';
@@ -1291,6 +1292,7 @@ export const useStore = create<AppState>((set, get) => ({
         ...c,
         useSpeedbooster: c.useSpeedbooster ?? false,
         mountType: c.mountType ?? 'tripod',
+        fixedMountLocation: normaliseFixedMountLocation(c.fixedMountLocation),
         // Bedarfe 59/60/61 — Rigging, Comms und Kit normalisieren. Ein
         // unbekannter Zugangs-Wert und eine Traglast, die keine Zahl ist,
         // fliegen hier raus: beide stuenden sonst auf einem Blatt, nach dem
