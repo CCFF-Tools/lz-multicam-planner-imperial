@@ -89,17 +89,18 @@ describe('selected preset delivery sheet', () => {
     expect(wide.view3D.width).toBeGreaterThanOrEqual(800);
   });
 
-  it('includes room edges and plan content outside the room in the 2D capture', () => {
-    const content = { x: -172, y: -12, width: 704, height: 844 };
-    const bounds = planExportBounds(360, 540, content, 32);
-    expect(bounds.stageX).toBe(204);
-    expect(bounds.stageY).toBe(44);
-    expect(content.x + bounds.stageX).toBeGreaterThanOrEqual(32);
-    expect(content.y + bounds.stageY).toBeGreaterThanOrEqual(32);
-    expect(content.x + content.width + bounds.stageX).toBeLessThanOrEqual(bounds.width - 32);
-    expect(content.y + content.height + bounds.stageY).toBeLessThanOrEqual(bounds.height - 32);
-    expect(bounds.stageX).toBeGreaterThanOrEqual(32);
-    expect(bounds.stageY).toBeGreaterThanOrEqual(32);
+  it('includes nearby edge labels without allowing distant outliers to shrink the room', () => {
+    const nearby = planExportBounds(360, 540, { x: -40, y: -20, width: 440, height: 620 });
+    expect(nearby.stageX).toBe(56);
+    expect(nearby.stageY).toBe(36);
+    expect(nearby.width).toBe(472);
+    expect(nearby.height).toBe(652);
+
+    const outlier = planExportBounds(360, 540, { x: -5000, y: -4000, width: 10000, height: 9000 });
+    expect(outlier.width).toBeLessThanOrEqual(488);
+    expect(outlier.height).toBeLessThanOrEqual(702);
+    expect(360 / outlier.width).toBeGreaterThan(0.7);
+    expect(540 / outlier.height).toBeGreaterThan(0.7);
   });
 
   it('forwards the rendered and English flags to the offscreen Camera View', () => {

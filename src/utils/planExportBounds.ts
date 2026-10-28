@@ -12,22 +12,27 @@ export interface PlanExportBounds {
   stageY: number;
 }
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
 /**
- * Canvas bounds that contain both the physical room and every visible Konva
- * item, including camera markers, labels, and FOV lines outside the walls.
+ * Canvas bounds centered on the physical room, with a controlled safety area
+ * for edge cameras, labels, and nearby FOV lines. Distant outliers must not
+ * shrink the room to a thumbnail in the delivery sheet.
  */
 export function planExportBounds(
-  worldWidth: number,
-  worldHeight: number,
+  roomWidth: number,
+  roomHeight: number,
   content: PlanContentRect,
-  margin = 32,
+  margin = 16,
 ): PlanExportBounds {
   const contentRight = content.x + Math.max(0, content.width);
   const contentBottom = content.y + Math.max(0, content.height);
-  const minX = Math.min(0, content.x);
-  const minY = Math.min(0, content.y);
-  const maxX = Math.max(worldWidth, contentRight);
-  const maxY = Math.max(worldHeight, contentBottom);
+  const overflowX = clamp(roomWidth * 0.12, 48, 120);
+  const overflowY = clamp(roomHeight * 0.12, 48, 120);
+  const minX = clamp(Math.min(0, content.x), -overflowX, 0);
+  const minY = clamp(Math.min(0, content.y), -overflowY, 0);
+  const maxX = clamp(Math.max(roomWidth, contentRight), roomWidth, roomWidth + overflowX);
+  const maxY = clamp(Math.max(roomHeight, contentBottom), roomHeight, roomHeight + overflowY);
   return {
     width: maxX - minX + margin * 2,
     height: maxY - minY + margin * 2,
