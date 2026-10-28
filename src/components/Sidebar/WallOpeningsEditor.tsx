@@ -87,19 +87,19 @@ export default function WallOpeningsEditor({ wall, defaultHeightM, onChange }: P
               <button type="button" aria-label={t('sidebar.openingRemove', 'Remove opening')} onClick={() => remove(index)} className="p-0.5 text-bc-muted hover:text-bc-red-text"><FiTrash2 size={11} /></button>
             </div>
             <div className="grid grid-cols-2 gap-1">
-              <label className="text-[9px] text-bc-muted">
+              <label className="text-[10px] text-bc-muted">
                 {format(t('sidebar.openingPosition', 'Position ({unit})'), { unit: lengthUnit(units) })}
                 <LengthInput aria-label={`${kind} position`} className="w-full border border-bc-border bg-bc-dark px-1 py-0.5 text-bc-text-bright" value={opening.offset} min={0} max={Math.max(0, pathLength - 0.05)} onChange={(offset) => replace(index, { offset })} />
               </label>
-              <label className="text-[9px] text-bc-muted">
+              <label className="text-[10px] text-bc-muted">
                 {format(t('sidebar.openingWidth', 'Width ({unit})'), { unit: lengthUnit(units) })}
                 <LengthInput aria-label={`${kind} width`} className="w-full border border-bc-border bg-bc-dark px-1 py-0.5 text-bc-text-bright" value={opening.width} min={0.05} max={Math.max(0.05, pathLength - opening.offset)} onChange={(width) => replace(index, { width })} />
               </label>
-              <label className="text-[9px] text-bc-muted">
+              <label className="text-[10px] text-bc-muted">
                 {format(t(kind === 'window' ? 'sidebar.openingSill' : 'sidebar.openingBottom', kind === 'window' ? 'Sill ({unit})' : 'Bottom ({unit})'), { unit: lengthUnit(units) })}
                 <LengthInput aria-label={`${kind} bottom`} className="w-full border border-bc-border bg-bc-dark px-1 py-0.5 text-bc-text-bright" value={opening.bottom} min={0} max={Math.max(0, height - 0.05)} onChange={(bottom) => replace(index, { bottom, top: Math.min(height, bottom + openingHeight) })} />
               </label>
-              <label className="text-[9px] text-bc-muted">
+              <label className="text-[10px] text-bc-muted">
                 {format(t('sidebar.openingHeight', 'Height ({unit})'), { unit: lengthUnit(units) })}
                 <LengthInput aria-label={`${kind} height`} className="w-full border border-bc-border bg-bc-dark px-1 py-0.5 text-bc-text-bright" value={openingHeight} min={0.05} max={Math.max(0.05, height - opening.bottom)} onChange={(nextHeight) => replace(index, { top: opening.bottom + nextHeight })} />
               </label>
