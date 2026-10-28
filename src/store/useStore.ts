@@ -202,7 +202,8 @@ interface AppState {
    * aktuellen Werte zeigt, waere per Konstruktion immer aktuell — und als
    * Dokument damit wertlos.
    */
-  savePresetFromCamera: (id: string, name: string, segment?: string) => void;
+  /** Returns the assigned preset number, or undefined when the camera is missing. */
+  savePresetFromCamera: (id: string, name: string, segment?: string) => number | undefined;
   /** Felder eines Presets aendern (Name, Segment, Nummer). */
   updatePreset: (id: string, number: number, patch: Partial<Pick<PtzPreset, 'name' | 'segment' | 'number'>>) => void;
   /** Ein Preset entfernen. */
@@ -842,22 +843,27 @@ export const useStore = create<AppState>((set, get) => ({
       projectVersion: s.projectVersion + 1,
     })),
 
-  savePresetFromCamera: (id, name, segment) =>
-    set((s) => ({
-      cameras: s.cameras.map((c) => {
-        if (c.id !== id) return c;
-        const presets = c.presets ?? [];
-        const neu = presetFromCamera(
-          c,
-          nextPresetNumber(presets),
-          name,
-          new Date().toISOString(),
-          segment,
-        );
-        return { ...c, presets: [...presets, neu] };
-      }),
-      projectVersion: s.projectVersion + 1,
-    })),
+  savePresetFromCamera: (id, name, segment) => {
+    let assigned: number | undefined;
+    set((s) => {
+      const camera = s.cameras.find((c) => c.id === id);
+      if (!camera) return {};
+      const presets = camera.presets ?? [];
+      assigned = nextPresetNumber(presets);
+      const neu = presetFromCamera(
+        camera,
+        assigned,
+        name,
+        new Date().toISOString(),
+        segment,
+      );
+      return {
+        cameras: s.cameras.map((c) => (c.id === id ? { ...c, presets: [...presets, neu] } : c)),
+        projectVersion: s.projectVersion + 1,
+      };
+    });
+    return assigned;
+  },
 
   updatePreset: (id, number, patch) =>
     set((s) => ({

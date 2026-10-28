@@ -6,9 +6,10 @@ import {
   groupPresets,
   hasPose,
   matchingPreset,
+  previewPresetsFromShots,
   type PreviewPreset,
 } from '../utils/previewPreset';
-import type { VenueCamera } from '../types';
+import type { Shot, VenueCamera } from '../types';
 
 const preset = (id: string, over: Partial<PreviewPreset> = {}): PreviewPreset => ({
   id,
@@ -127,5 +128,41 @@ describe('quick preset recall', () => {
     expect(adjacentPreset([one, two], 'one', -1)?.id).toBe('two');
     expect(adjacentPreset([one, two], 'two', 1)?.id).toBe('one');
     expect(adjacentPreset([], undefined, 1)).toBeUndefined();
+  });
+});
+
+describe('shot-list recall source', () => {
+  const state = {
+    x: 2, y: 3, z: 1.5, pan: 90, tilt: -5,
+    focalLength: 35, aperture: 2.8, focusDistance: 8, trackOffset: 0.75,
+  };
+  const shot = (id: string, cameraId: string, name: string): Shot => ({
+    id,
+    cameraId,
+    name,
+    state,
+    transition: 'fast',
+  });
+
+  it('filters to the open camera, preserves shot-list order, and carries the complete pose', () => {
+    const presets = previewPresetsFromShots([
+      shot('other', 'cam-2', 'Other'),
+      shot('wide', 'cam-1', 'Wide'),
+      shot('close', 'cam-1', 'Close'),
+    ], 'cam-1');
+
+    expect(presets.map((p) => p.id)).toEqual(['wide', 'close']);
+    expect(presets[0]).toMatchObject({
+      sourceShotId: 'wide',
+      cameraId: 'cam-1',
+      name: 'Wide',
+      ...state,
+    });
+  });
+
+  it('matches a captured view and changes to Custom after moving the camera', () => {
+    const presets = previewPresetsFromShots([shot('wide', 'cam-1', 'Wide')], 'cam-1');
+    expect(matchingPreset(presets, { ...state, pan: 450 })?.id).toBe('wide');
+    expect(matchingPreset(presets, { ...state, x: state.x + 0.02 })).toBeUndefined();
   });
 });

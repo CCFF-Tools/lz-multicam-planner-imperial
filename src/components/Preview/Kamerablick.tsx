@@ -48,7 +48,7 @@ import { profileForMount } from '../../utils/motionProfile';
 import { drawCameraView, wallSurfaces, type ProjectedPerson } from './cameraViewRenderer';
 import LookToggle from '../Render3D/LookToggle';
 import { bereit3D, render3D, useBedarf3D, useBildVersion3D, useKameraLook } from '../Render3D/kameraBild3d';
-import { adjacentPreset, assignPreset, groupPresets, hasPose, matchingPreset, type PreviewPreset } from '../../utils/previewPreset';
+import { adjacentPreset, assignPreset, groupPresets, hasPose, matchingPreset, previewPresetsFromShots, type PreviewPreset } from '../../utils/previewPreset';
 import { formatAperture, formatDistance, niceTicks, stepAlong, stepStop, stopsInRange } from '../../utils/lensScale';
 import { useUnits } from '../../store/units';
 import { formatLengthWithUnit } from '../../utils/units';
@@ -94,7 +94,17 @@ export interface KamerablickProps {
 }
 
 export default function Kamerablick({ kopf }: KamerablickProps) {
-  const { cameras, selectedCameraId, venue, persons, walls, selectNextCamera, selectPrevCamera } = useStore();
+  const {
+    cameras,
+    selectedCameraId,
+    venue,
+    persons,
+    walls,
+    selectNextCamera,
+    selectPrevCamera,
+    shotlists,
+    activeShotlistId,
+  } = useStore();
   const { t } = useTranslation();
   const units = useUnits((s) => s.units);
   const length = (meters: number) => formatLengthWithUnit(meters, units);
@@ -120,7 +130,9 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
   const [steuerungOffen, setSteuerungOffen] = useGeteilt<boolean>(STEUERUNG_KEY, false);
   const [presets, setPresets] = useGeteilt<PreviewPreset[]>(PRESETS_KEY, KEINE_PRESETS);
   const presetGroups = groupPresets(presets, cam?.id, cameras.map((c) => c.id));
-  const activePreset = cam ? matchingPreset(presetGroups.own, cam) : undefined;
+  const activeShotlist = shotlists.find((list) => list.id === activeShotlistId);
+  const quickPresets = cam ? previewPresetsFromShots(activeShotlist?.shots ?? [], cam.id) : [];
+  const activePreset = cam ? matchingPreset(quickPresets, { ...cam }) : undefined;
   const [transitionMode, setTransitionMode] = useGeteilt<ShotTransition>(TRANSITION_MODE_KEY, 'off');
   const [transitionSeconds, setTransitionSeconds] = useGeteilt<number>(TRANSITION_SEC_KEY, 6);
 
@@ -162,17 +174,18 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
   const draw = useCallback((target?: { canvas: HTMLCanvasElement; cssW: number }) => {
     const canvas = target?.canvas ?? canvasRef.current;
     const wrap = wrapRef.current;
-    if (!canvas || !cam || (!target && !wrap)) return;
+    const drawCam = cameras.find((camera) => camera.id === selectedCameraId);
+    if (!canvas || !drawCam || (!target && !wrap)) return;
     const { customCameras, customLenses } = useStore.getState();
     const cssW = target ? target.cssW : wrap!.getBoundingClientRect().width;
     const dpr = target ? 1 : (window.devicePixelRatio || 1);
     const gerendert = !target && look === 'rendered' && cssW > 0
-      && render3D(cam.id, (bildPuffer.current ??= document.createElement('canvas')), cssW, dpr, 'gross');
+      && render3D(drawCam.id, (bildPuffer.current ??= document.createElement('canvas')), cssW, dpr, 'gross');
     const projected = drawCameraView({
       canvas,
       cssW,
       dpr,
-      cam,
+      cam: drawCam,
       bare: false,
       scene: { venue, persons, walls, cameras, customCameras, customLenses },
       overlays: { grid: ov.grid, safeAreas: ov.safeAreas, thirds: ov.thirds, crosshair: ov.crosshair },
@@ -184,7 +197,7 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
       projectedPersons.current = projected;
       setProjectedCount(projected.length);
     }
-  }, [cam, venue, persons, walls, cameras, ov.grid, ov.safeAreas, ov.thirds, ov.crosshair, t, units, look]);
+  }, [selectedCameraId, venue, persons, walls, cameras, ov.grid, ov.safeAreas, ov.thirds, ov.crosshair, t, units, look]);
 
   // Synchron nach jedem Render, damit Schwenken per Zug ohne Ruckeln mitgeht.
   useLayoutEffect(() => { draw(); }, [draw, imageTick, bildVersion]);
@@ -343,17 +356,17 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
         </div>
       )}
       {cam && (
-        <div className="flex min-w-0 items-center gap-1" aria-label={t('preview.quickPreset', 'Preset recall')}>
+        <div className="flex min-w-0 items-center gap-1" aria-label={t('preview.quickShot', 'Shot recall')}>
           <button
             type="button"
             className="bc-btn-soft px-0"
-            disabled={presetGroups.own.length === 0}
+            disabled={quickPresets.length === 0}
             onClick={() => {
-              const p = adjacentPreset(presetGroups.own, activePreset?.id, -1);
+              const p = adjacentPreset(quickPresets, activePreset?.id, -1);
               if (p) applyPreset(p);
             }}
-            aria-label={t('preview.prevPreset', 'Previous preset')}
-            title={t('preview.prevPreset', 'Previous preset')}
+            aria-label={t('preview.prevShot', 'Previous captured shot for this camera')}
+            title={t('preview.prevShot', 'Previous captured shot for this camera')}
           >
             <FiChevronLeft size={18} />
           </button>
@@ -363,13 +376,13 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
           <button
             type="button"
             className="bc-btn-soft px-0"
-            disabled={presetGroups.own.length === 0}
+            disabled={quickPresets.length === 0}
             onClick={() => {
-              const p = adjacentPreset(presetGroups.own, activePreset?.id, 1);
+              const p = adjacentPreset(quickPresets, activePreset?.id, 1);
               if (p) applyPreset(p);
             }}
-            aria-label={t('preview.nextPreset', 'Next preset')}
-            title={t('preview.nextPreset', 'Next preset')}
+            aria-label={t('preview.nextShot', 'Next captured shot for this camera')}
+            title={t('preview.nextShot', 'Next captured shot for this camera')}
           >
             <FiChevronRight size={18} />
           </button>
@@ -421,6 +434,7 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
     if (p.trackOffset !== undefined) target.trackOffset = p.trackOffset;
     if (p.x !== undefined) target.x = p.x;
     if (p.y !== undefined) target.y = p.y;
+    if (p.sourceShotId) useStore.getState().setCurrentShotId(p.sourceShotId);
     // Ein Preset darf ausserhalb der echten Optik liegen — dann muss der Regler es zeigen koennen.
     if (lensDef && (p.focalLength < lensDef.focalLengthMin || p.focalLength > lensDef.focalLengthMax)) {
       setManualZoom(true);
@@ -449,7 +463,9 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
     const res = captureCurrentShot();
     setShotHint(
       !res.ok ? (res.reason ?? t('preview.shot.failed', 'Capture failed.'))
-        : res.hadThumbnail ? t('preview.shot.done', 'Shot captured.')
+        : res.hadThumbnail && res.ptzPresetNumber !== undefined
+          ? format(t('preview.shot.donePtz', 'Shot captured and documented as PTZ preset #{number}.'), { number: res.ptzPresetNumber })
+          : res.hadThumbnail ? t('preview.shot.done', 'Shot captured.')
           : t('preview.shot.noImage', 'Shot saved — without picture.'),
     );
     window.setTimeout(() => setShotHint(null), 2500);

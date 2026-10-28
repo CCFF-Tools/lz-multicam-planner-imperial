@@ -13,7 +13,7 @@
 //
 // Reines Modul: kein Store, kein DOM.
 
-import type { VenueCamera } from '../types';
+import type { Shot, VenueCamera } from '../types';
 
 export interface PreviewPreset {
   id: string;
@@ -31,6 +31,32 @@ export interface PreviewPreset {
   trackOffset?: number;
   x?: number;
   y?: number;
+  /** Project shot that supplied this transient recall item. */
+  sourceShotId?: string;
+}
+
+/**
+ * Adapts captured shots for the existing Preview recall control. The result is
+ * transient: the shot list remains the only persisted source of truth.
+ */
+export function previewPresetsFromShots(shots: readonly Shot[], cameraId: string): PreviewPreset[] {
+  return shots
+    .filter((shot) => shot.cameraId === cameraId)
+    .map((shot) => ({
+      id: shot.id,
+      sourceShotId: shot.id,
+      name: shot.name,
+      cameraId: shot.cameraId,
+      focalLength: shot.state.focalLength,
+      aperture: shot.state.aperture,
+      focusDistance: shot.state.focusDistance,
+      pan: shot.state.pan,
+      tilt: shot.state.tilt,
+      z: shot.state.z,
+      trackOffset: shot.state.trackOffset,
+      x: shot.state.x,
+      y: shot.state.y,
+    }));
 }
 
 export interface PresetGroups {
