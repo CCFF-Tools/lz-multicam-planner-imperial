@@ -188,7 +188,7 @@ export default function ExportPanel() {
     // Selected PTZ preset delivery is a compact review frame, not the full
     // operational camera card used by the other export commands.
     if (opts?.selectedPresetSheet) {
-      const layout = selectedPresetSheetLayout();
+      const layout = selectedPresetSheetLayout(venue.widthM, venue.heightM);
       const out = document.createElement('canvas');
       out.width = layout.width;
       out.height = layout.height;
@@ -214,55 +214,21 @@ export default function ExportPanel() {
         ctx.fillStyle = '#0a0e14';
         ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
         if (src && src.width > 0 && src.height > 0) {
-          let sourceX = 0;
-          let sourceY = 0;
-          let sourceWidth = src.width;
-          let sourceHeight = src.height;
-
-          // Konva's venue export retains transparent space around the world
-          // extent. Trim that space so the actual plan fills its delivery tile.
-          if (label === '2D plan') {
-            try {
-              const pixels = src.getContext('2d')?.getImageData(0, 0, src.width, src.height).data;
-              if (pixels) {
-                let minX = src.width;
-                let minY = src.height;
-                let maxX = -1;
-                let maxY = -1;
-                for (let y = 0; y < src.height; y += 2) {
-                  for (let x = 0; x < src.width; x += 2) {
-                    if (pixels[(y * src.width + x) * 4 + 3] > 8) {
-                      minX = Math.min(minX, x);
-                      minY = Math.min(minY, y);
-                      maxX = Math.max(maxX, x);
-                      maxY = Math.max(maxY, y);
-                    }
-                  }
-                }
-                if (maxX >= minX && maxY >= minY) {
-                  const margin = 4;
-                  sourceX = Math.max(0, minX - margin);
-                  sourceY = Math.max(0, minY - margin);
-                  sourceWidth = Math.min(src.width, maxX + margin) - sourceX;
-                  sourceHeight = Math.min(src.height, maxY + margin) - sourceY;
-                }
-              }
-            } catch { /* use the full canvas when pixel access is unavailable */ }
-          }
-
-          const scale = Math.min(rect.width / sourceWidth, rect.height / sourceHeight);
-          const width = sourceWidth * scale;
-          const height = sourceHeight * scale;
+          // Reserve room for the title strip and contain the complete source.
+          // In particular, never crop a portrait plan to fill a landscape box.
+          const contentX = rect.x + 8;
+          const contentY = rect.y + 34;
+          const contentWidth = rect.width - 16;
+          const contentHeight = rect.height - 42;
+          const scale = Math.min(contentWidth / src.width, contentHeight / src.height);
+          const drawWidth = src.width * scale;
+          const drawHeight = src.height * scale;
           ctx.drawImage(
             src,
-            sourceX,
-            sourceY,
-            sourceWidth,
-            sourceHeight,
-            rect.x + (rect.width - width) / 2,
-            rect.y + (rect.height - height) / 2,
-            width,
-            height,
+            contentX + (contentWidth - drawWidth) / 2,
+            contentY + (contentHeight - drawHeight) / 2,
+            drawWidth,
+            drawHeight,
           );
         } else {
           ctx.fillStyle = '#1a1d27';
@@ -326,10 +292,32 @@ export default function ExportPanel() {
         ['1.8m person:', `${personPx.toFixed(0)}px / 1080 (${((personPx / 1080) * 100).toFixed(1)}%)`, '#22c55e'],
       ];
       if (adapterInfo) selectedLines.push(['Adapter:', adapterInfo.name, '#f59e0b']);
+      const valueX = dx + 140;
+      const valueWidth = data.width - 180;
+      const wrapValue = (value: string): string[] => {
+        const words = value.split(/\s+/).filter(Boolean);
+        if (words.length === 0) return [''];
+        const lines: string[] = [];
+        let line = words[0];
+        for (const word of words.slice(1)) {
+          const candidate = `${line} ${word}`;
+          if (ctx.measureText(candidate).width <= valueWidth) line = candidate;
+          else {
+            lines.push(line);
+            line = word;
+          }
+        }
+        lines.push(line);
+        return lines;
+      };
       for (const [label, value, color] of selectedLines) {
         ctx.fillStyle = color ?? '#e5e7eb';
-        ctx.fillText(label.padEnd(18) + value, dx, dy);
-        dy += dataLineH;
+        ctx.fillText(label, dx, dy);
+        const valueLines = wrapValue(value);
+        for (let lineIndex = 0; lineIndex < valueLines.length; lineIndex += 1) {
+          ctx.fillText(valueLines[lineIndex], valueX, dy + lineIndex * dataLineH);
+        }
+        dy += dataLineH * valueLines.length;
       }
 
       const filename = `${safeFilePart(targetCam.label)}${opts.variantLabel ? `_${safeFilePart(opts.variantLabel)}` : ''}_${safeFilePart(venue.name)}_v${projectVersion}.png`;

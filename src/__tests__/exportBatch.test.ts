@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { VenueCamera } from '../types';
 import { cameraExportJobs, presetExportJobs, presetExportKey } from '../utils/exportBatch';
 import { selectedPresetSheetLayout } from '../utils/presetExportSheet';
+import { planExportBounds } from '../utils/planExportBounds';
 import previewSource from '../components/Preview/Kamerablick.tsx?raw';
 
 const camera = (id: string, lensId = id): VenueCamera => ({ id, lensId } as VenueCamera);
@@ -55,13 +56,16 @@ describe('selected preset export queue', () => {
 });
 
 describe('selected preset delivery sheet', () => {
-  it('uses a fixed 1920×1080 canvas with large, non-overlapping visual regions', () => {
-    const layout = selectedPresetSheetLayout();
+  it('uses a fixed 1920×1080 canvas with a room-aware plan column', () => {
+    const layout = selectedPresetSheetLayout(12.2, 18.3);
     expect([layout.width, layout.height]).toEqual([1920, 1080]);
     expect(layout.width / layout.height).toBeCloseTo(16 / 9, 8);
-    expect(layout.plan2D.width).toBeGreaterThan(900);
-    expect(layout.view3D.width).toBeGreaterThan(900);
-    expect(layout.cameraView.width).toBeGreaterThan(800);
+    expect(layout.plan2D.height).toBeGreaterThan(900);
+    expect(layout.plan2D.width / layout.plan2D.height).toBeGreaterThan(0.55);
+    expect(layout.plan2D.width / layout.plan2D.height).toBeLessThan(0.7);
+    expect(layout.view3D.width).toBeGreaterThanOrEqual(800);
+    expect(layout.cameraView.width).toBeGreaterThanOrEqual(800);
+    expect(layout.data.width).toBeGreaterThanOrEqual(400);
 
     for (const rect of [layout.plan2D, layout.view3D, layout.cameraView, layout.data]) {
       expect(rect.x).toBeGreaterThanOrEqual(0);
@@ -70,7 +74,32 @@ describe('selected preset delivery sheet', () => {
       expect(rect.y + rect.height).toBeLessThanOrEqual(layout.height);
     }
     expect(layout.plan2D.x + layout.plan2D.width).toBeLessThan(layout.view3D.x);
+    expect(layout.view3D.x).toBe(layout.cameraView.x);
+    expect(layout.view3D.width).toBe(layout.cameraView.width);
+    expect(layout.view3D.y + layout.view3D.height).toBeLessThan(layout.cameraView.y);
     expect(layout.cameraView.x + layout.cameraView.width).toBeLessThan(layout.data.x);
+    expect(layout.data.height).toBe(layout.plan2D.height);
+  });
+
+  it('gives a taller room a narrower plan column without starving the visual stack', () => {
+    const tall = selectedPresetSheetLayout(8, 24);
+    const wide = selectedPresetSheetLayout(24, 8);
+    expect(tall.plan2D.width).toBeLessThan(wide.plan2D.width);
+    expect(tall.view3D.width).toBeGreaterThan(wide.view3D.width);
+    expect(wide.view3D.width).toBeGreaterThanOrEqual(800);
+  });
+
+  it('includes room edges and plan content outside the room in the 2D capture', () => {
+    const content = { x: -172, y: -12, width: 704, height: 844 };
+    const bounds = planExportBounds(360, 540, content, 32);
+    expect(bounds.stageX).toBe(204);
+    expect(bounds.stageY).toBe(44);
+    expect(content.x + bounds.stageX).toBeGreaterThanOrEqual(32);
+    expect(content.y + bounds.stageY).toBeGreaterThanOrEqual(32);
+    expect(content.x + content.width + bounds.stageX).toBeLessThanOrEqual(bounds.width - 32);
+    expect(content.y + content.height + bounds.stageY).toBeLessThanOrEqual(bounds.height - 32);
+    expect(bounds.stageX).toBeGreaterThanOrEqual(32);
+    expect(bounds.stageY).toBeGreaterThanOrEqual(32);
   });
 
   it('forwards the rendered and English flags to the offscreen Camera View', () => {
