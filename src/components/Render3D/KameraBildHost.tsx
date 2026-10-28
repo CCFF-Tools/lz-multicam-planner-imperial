@@ -23,6 +23,8 @@ import { renderLook, wendeLookAn } from './renderLook';
 import { tiefenschaerfeFuerBild } from '../../utils/tiefenschaerfe';
 import { SzenenGrund } from './SzenenGrund';
 import { objectBaseElevation } from '../../utils/ceiling';
+import { applyCameraViewVisibility } from '../../utils/cameraViewVisibility';
+import CameraSceneFleet from '../Venue3D/CameraSceneFleet';
 
 export default function KameraBildHost() {
   const [prefs] = useView3DPrefs();
@@ -62,6 +64,11 @@ function HostSzene() {
   const stufe: Stufe = prefs.quality === 'low' || gesenkt ? 'low' : 'high';
   const werte = useMemo(() => stufenWerte(stufe), [stufe]);
   const messung = useRef(new RenderMessung());
+  const cameraModels = useRef(new Map<string, THREE.Group>());
+  const registerCameraModel = useCallback((cameraId: string, node: THREE.Group | null) => {
+    if (node) cameraModels.current.set(cameraId, node);
+    else cameraModels.current.delete(cameraId);
+  }, []);
 
   const tag = show && prefs.daylight;
   const [tagBelichtung, setTagBelichtung] = useState(1);
@@ -124,6 +131,7 @@ function HostSzene() {
         }
         const { w, h } = bildPixel(rolle, cssW, dpr, gesenkt ? 0.6 : inBewegung && rolle === 'gross' ? 0.7 : 1);
         const t0 = jetzt;
+        applyCameraViewVisibility(cameraModels.current, camId);
         // Ohne laufende Schleife (frameloop="demand") setzt hier die Zeit fuer
         // Dunst und Videowand.
         SZENEN_ZEIT.value = t0 / 1000;
@@ -206,6 +214,7 @@ function HostSzene() {
           <Figur person={p} facingDeg={daten.personBlick(p.x, p.y)} name={false} objektName={false} />
         </group>
       ))}
+      <CameraSceneFleet register={registerCameraModel} operators={prefs.operators} />
     </>
   );
 }
