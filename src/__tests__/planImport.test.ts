@@ -128,6 +128,35 @@ describe('Wand mit Öffnungen als Quader', () => {
     expect(s.map((x) => [x.unten, +x.hoehe.toFixed(2)])).toEqual([[0, 0.9], [2.3, 0.7]]);
   });
 
+  it('cuts vertically stacked windows without rebuilding wall through either pane', () => {
+    const s = wandStuecke(wand([
+      { offset: 1, width: 1, bottom: 0, top: 1.6, kind: 'window' },
+      { offset: 0.5, width: 2, bottom: 2, top: 2.6, kind: 'window' },
+    ]), 3);
+    const contains = (x: number, z: number) => s.some((piece) => (
+      x >= piece.x - piece.laenge / 2 - 1e-6
+      && x <= piece.x + piece.laenge / 2 + 1e-6
+      && z >= piece.unten - 1e-6
+      && z <= piece.unten + piece.hoehe + 1e-6
+    ));
+    expect(contains(1.5, 0.8)).toBe(false);
+    expect(contains(1.5, 1.8)).toBe(true);
+    expect(contains(1.5, 2.3)).toBe(false);
+    expect(contains(1.5, 2.8)).toBe(true);
+    expect(contains(0.75, 1)).toBe(true);
+    expect(contains(0.75, 2.3)).toBe(false);
+  });
+
+  it('unions genuinely overlapping openings instead of layering wall or glass ranges', () => {
+    const s = wandStuecke(wand([
+      { offset: 1, width: 1, bottom: 0.4, top: 1.8, kind: 'window' },
+      { offset: 1, width: 1, bottom: 1.2, top: 2.5, kind: 'window' },
+    ]), 3);
+    const centre = s.filter((piece) => Math.abs(piece.x - 1.5) < 1e-6);
+    expect(centre).toHaveLength(2);
+    expect(centre.map((piece) => [piece.unten, piece.hoehe])).toEqual([[0, 0.4], [2.5, 0.5]]);
+  });
+
   it('ignoriert Öffnungen, die höher als die Wand liegen', () => {
     expect(wandStuecke(wand([{ offset: 1, width: 1, bottom: 4, top: 5 }]), 3)).toHaveLength(1);
   });

@@ -196,17 +196,35 @@ export function wandStuecke(w: Wall, hoeheM: number): WandStueck[] {
       oben: Math.max(0, Math.min(hoeheM, o.top)),
     }))
     .filter((o) => o.bis - o.von > 0.01 && o.oben - o.unten > 0.01)
-    .sort((a, b) => a.von - b.von);
+    .sort((a, b) => a.von - b.von || a.unten - b.unten);
   if (!oeffnungen.length) return stueckeImIntervall(w, 0, laenge, 0, hoeheM);
 
+  // Split the wall into horizontal slabs at every opening edge, then subtract
+  // the union of all vertical opening ranges in each slab. The earlier
+  // left-to-right cursor only worked when opening spans never overlapped. A
+  // transom above a door/window could therefore put a second wall slab back
+  // through the lower pane and change its apparent glass opacity.
   const stuecke: WandStueck[] = [];
-  let x = 0;
-  for (const o of oeffnungen) {
-    if (o.von > x + 0.01) stuecke.push(...stueckeImIntervall(w, x, o.von, 0, hoeheM));
-    if (o.unten > 0.01) stuecke.push(...stueckeImIntervall(w, o.von, o.bis, 0, o.unten));
-    if (hoeheM - o.oben > 0.01) stuecke.push(...stueckeImIntervall(w, o.von, o.bis, o.oben, hoeheM - o.oben));
-    x = Math.max(x, o.bis);
+  const kanten = [...new Set([0, laenge, ...oeffnungen.flatMap((o) => [o.von, o.bis])])].sort((a, b) => a - b);
+  for (let index = 1; index < kanten.length; index += 1) {
+    const von = kanten[index - 1];
+    const bis = kanten[index];
+    if (bis - von < 1e-6) continue;
+    const mitte = (von + bis) / 2;
+    const vertikal = oeffnungen
+      .filter((o) => o.von < mitte && o.bis > mitte)
+      .map((o) => ({ unten: o.unten, oben: o.oben }))
+      .sort((a, b) => a.unten - b.unten || a.oben - b.oben);
+    let unten = 0;
+    for (const frei of vertikal) {
+      if (frei.unten > unten + 0.01) {
+        stuecke.push(...stueckeImIntervall(w, von, bis, unten, frei.unten - unten));
+      }
+      unten = Math.max(unten, frei.oben);
+    }
+    if (hoeheM - unten > 0.01) {
+      stuecke.push(...stueckeImIntervall(w, von, bis, unten, hoeheM - unten));
+    }
   }
-  if (laenge - x > 0.01) stuecke.push(...stueckeImIntervall(w, x, laenge, 0, hoeheM));
   return stuecke;
 }
