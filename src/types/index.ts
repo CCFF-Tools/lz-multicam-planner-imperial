@@ -887,6 +887,11 @@ export interface Shot {
   /** Nur bei `transition === 'manual'` relevant. */
   transitionSeconds?: number;
   /**
+   * Number documented in the camera's PTZ preset table when this shot was
+   * captured. Absent for non-PTZ cameras and older projects.
+   */
+  ptzPresetNumber?: number;
+  /**
    * Bewegungsstil beim Anfahren. Ohne Angabe gilt der Stil der Montage, auf der
    * die Kamera steht (`VenueCamera.mountType`) — das ist der Normalfall. Explizit
    * gesetzt laesst sich ein Shot abweichend fahren, z. B. eine Stativ-Kamera

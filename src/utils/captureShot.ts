@@ -6,6 +6,7 @@ import { useStore } from '../store/useStore';
 import { getExportRegistry } from '../store/exportRegistry';
 import { makeThumbnail } from './shotThumbnail';
 import { defaultShotName, shotStateFromCamera } from './shot';
+import { getCameraById } from '../data/cameras';
 
 export interface CaptureShotResult {
   ok: boolean;
@@ -13,6 +14,8 @@ export interface CaptureShotResult {
   shotlistId?: string;
   /** false, wenn kein Framegrab moeglich war (Preview-Tab nicht gemountet). */
   hadThumbnail: boolean;
+  /** Number added to the camera's project PTZ preset table. */
+  ptzPresetNumber?: number;
   /** Grund bei `ok: false` — fuer die Meldung an den Nutzer. */
   reason?: string;
 }
@@ -46,13 +49,20 @@ export function captureCurrentShot(): CaptureShotResult {
   const canvas = registry.renderPreviewOffscreen?.() ?? registry.capturePreviewCanvas?.() ?? null;
   const thumbnail = makeThumbnail(canvas) ?? undefined;
 
+  const name = defaultShotName(cam);
+  const camDef = getCameraById(cam.cameraId, state.customCameras);
+  const ptzPresetNumber = camDef?.type === 'ptz'
+    ? useStore.getState().savePresetFromCamera(cam.id, name)
+    : undefined;
+
   const shotId = useStore.getState().addShot(shotlistId, {
-    name: defaultShotName(cam),
+    name,
     cameraId: cam.id,
     state: shotStateFromCamera(cam),
     transition: 'fast',
+    ...(ptzPresetNumber !== undefined ? { ptzPresetNumber } : {}),
     thumbnail,
   });
 
-  return { ok: true, shotId, shotlistId, hadThumbnail: !!thumbnail };
+  return { ok: true, shotId, shotlistId, hadThumbnail: !!thumbnail, ptzPresetNumber };
 }
