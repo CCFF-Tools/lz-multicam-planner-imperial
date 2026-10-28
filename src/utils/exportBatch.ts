@@ -4,6 +4,7 @@ export interface CameraExportJob {
   cam: VenueCamera;
   focalOverride?: number;
   variantLabel?: string;
+  displayLabel?: string;
   cameraOverride?: Partial<VenueCamera>;
 }
 
@@ -43,11 +44,17 @@ export function presetExportJobs(cameras: VenueCamera[], selected: ReadonlySet<s
       jobs.push({
         cam,
         variantLabel: `preset_${preset.number}_${preset.name}`,
+        displayLabel: `Preset #${preset.number} — ${preset.name}`,
         cameraOverride: {
           pan: preset.pan,
           tilt: preset.tilt,
           focalLength: preset.focalLength,
           focusDistance: preset.focusDistance,
+          ...(preset.savedAtPosition ? {
+            x: preset.savedAtPosition.x,
+            y: preset.savedAtPosition.y,
+            z: preset.savedAtPosition.z,
+          } : {}),
           lockedPersonId: undefined,
         },
       });

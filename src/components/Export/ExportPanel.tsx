@@ -26,6 +26,9 @@ import { formatDimensions, formatLengthWithUnit } from '../../utils/units';
 import { createZip } from '../../utils/zip';
 import { cameraExportJobs, presetExportJobs, presetExportKey } from '../../utils/exportBatch';
 import { withTransientProjectState } from '../../store/transientProjectState';
+import { useBedarf3D } from '../Render3D/kameraBild3d';
+import { getView3DPrefs, updateView3DPrefs } from '../Venue3D/view3dPrefs';
+import { selectedPresetSheetLayout, type ExportRect } from '../../utils/presetExportSheet';
 
 export type ExportMode = 'current' | 'all' | 'widetele' | 'all-widetele' | 'selected-presets';
 
@@ -73,6 +76,7 @@ export default function ExportPanel() {
   const [exportProgress, setExportProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [presetPickerOpen, setPresetPickerOpen] = useState(false);
   const [selectedPresets, setSelectedPresets] = useState<Set<string>>(() => new Set());
+  useBedarf3D(presetPickerOpen || exporting);
   const { cameras, venue, persons, projectVersion } = useStore();
   const { t } = useTranslation();
   const units = useUnits((s) => s.units);
@@ -100,14 +104,18 @@ export default function ExportPanel() {
     return null;
   }, []);
 
-  const capturePreviewCanvas = useCallback((): HTMLCanvasElement | null => {
+  const capturePreviewCanvas = useCallback((renderedEnglish = false): HTMLCanvasElement | null => {
     const registry = getExportRegistry();
     if (typeof registry.renderPreviewOffscreen === 'function') {
       try {
-        const canvas = registry.renderPreviewOffscreen(960);
+        const canvas = registry.renderPreviewOffscreen(
+          960,
+          renderedEnglish ? { rendered: true, english: true } : undefined,
+        );
         if (canvas) return canvas;
       } catch { /* fall through */ }
     }
+    if (renderedEnglish) return null;
     if (typeof registry.capturePreviewCanvas === 'function') {
       try { return registry.capturePreviewCanvas(); } catch { /* fall through */ }
     }
@@ -124,7 +132,14 @@ export default function ExportPanel() {
   }, []);
 
   /** Render a single export PNG for a given camera + optional focal length override. */
-  const renderOne = useCallback(async (baseCam: VenueCamera, opts?: { focalOverride?: number; variantLabel?: string; extraSettleMs?: number; cameraOverride?: Partial<VenueCamera> }) => {
+  const renderOne = useCallback(async (baseCam: VenueCamera, opts?: {
+    focalOverride?: number;
+    variantLabel?: string;
+    displayLabel?: string;
+    extraSettleMs?: number;
+    cameraOverride?: Partial<VenueCamera>;
+    selectedPresetSheet?: boolean;
+  }) => {
     const overriddenCam = { ...baseCam, ...opts?.cameraOverride };
     const targetCam = { ...overriddenCam, focalLength: opts?.focalOverride ?? overriddenCam.focalLength };
     const camDef = getCameraById(targetCam.cameraId, useStore.getState().customCameras);
@@ -161,6 +176,168 @@ export default function ExportPanel() {
     if (needCameraChange) setExportCamera(targetCam);
     const extra = opts?.extraSettleMs ?? 0;
     if (needSelectionChange || needCameraChange || extra > 0) await waitForPaint(250 + extra);
+
+    const plan2D = capture2DCanvas();
+    const view3D = capture3DCanvas();
+    let previewCanvas = capturePreviewCanvas(!!opts?.selectedPresetSheet);
+    if (opts?.selectedPresetSheet && !previewCanvas) {
+      await waitForPaint(400);
+      previewCanvas = capturePreviewCanvas(true);
+    }
+
+    // Selected PTZ preset delivery is a compact review frame, not the full
+    // operational camera card used by the other export commands.
+    if (opts?.selectedPresetSheet) {
+      const layout = selectedPresetSheetLayout();
+      const out = document.createElement('canvas');
+      out.width = layout.width;
+      out.height = layout.height;
+      const ctx = out.getContext('2d')!;
+      ctx.fillStyle = '#0f1117';
+      ctx.fillRect(0, 0, layout.width, layout.height);
+
+      ctx.fillStyle = '#1a1d27';
+      ctx.fillRect(0, 0, layout.width, layout.headerHeight);
+      ctx.fillStyle = '#e5e7eb';
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 24px sans-serif';
+      ctx.fillText(`${targetCam.label}${opts.displayLabel ? ` — ${opts.displayLabel}` : ''}`, 16, 28);
+      ctx.font = '14px sans-serif';
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillText(`${camDef.manufacturer} ${camDef.model} · Lens: ${lensDef.manufacturer} ${lensDef.model} @ ${focalLength.toFixed(1)}mm`, 16, 51);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#9ca3af';
+      ctx.fillText(`${venue.name} — Project v${projectVersion}`, layout.width - 16, 25);
+      ctx.fillText(`Exported: ${new Date().toLocaleString('en-US')}`, layout.width - 16, 48);
+
+      const drawPresetTile = (src: HTMLCanvasElement | null, rect: ExportRect, label: string) => {
+        ctx.fillStyle = '#0a0e14';
+        ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+        if (src && src.width > 0 && src.height > 0) {
+          let sourceX = 0;
+          let sourceY = 0;
+          let sourceWidth = src.width;
+          let sourceHeight = src.height;
+
+          // Konva's venue export retains transparent space around the world
+          // extent. Trim that space so the actual plan fills its delivery tile.
+          if (label === '2D plan') {
+            try {
+              const pixels = src.getContext('2d')?.getImageData(0, 0, src.width, src.height).data;
+              if (pixels) {
+                let minX = src.width;
+                let minY = src.height;
+                let maxX = -1;
+                let maxY = -1;
+                for (let y = 0; y < src.height; y += 2) {
+                  for (let x = 0; x < src.width; x += 2) {
+                    if (pixels[(y * src.width + x) * 4 + 3] > 8) {
+                      minX = Math.min(minX, x);
+                      minY = Math.min(minY, y);
+                      maxX = Math.max(maxX, x);
+                      maxY = Math.max(maxY, y);
+                    }
+                  }
+                }
+                if (maxX >= minX && maxY >= minY) {
+                  const margin = 4;
+                  sourceX = Math.max(0, minX - margin);
+                  sourceY = Math.max(0, minY - margin);
+                  sourceWidth = Math.min(src.width, maxX + margin) - sourceX;
+                  sourceHeight = Math.min(src.height, maxY + margin) - sourceY;
+                }
+              }
+            } catch { /* use the full canvas when pixel access is unavailable */ }
+          }
+
+          const scale = Math.min(rect.width / sourceWidth, rect.height / sourceHeight);
+          const width = sourceWidth * scale;
+          const height = sourceHeight * scale;
+          ctx.drawImage(
+            src,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight,
+            rect.x + (rect.width - width) / 2,
+            rect.y + (rect.height - height) / 2,
+            width,
+            height,
+          );
+        } else {
+          ctx.fillStyle = '#1a1d27';
+          ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+          ctx.fillStyle = '#6b7280';
+          ctx.font = '14px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${label} — not available`, rect.x + rect.width / 2, rect.y + rect.height / 2);
+        }
+        ctx.strokeStyle = '#2a2d3a';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        ctx.fillStyle = '#000000bb';
+        ctx.fillRect(rect.x, rect.y, 150, 28);
+        ctx.fillStyle = '#e5e7eb';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(label, rect.x + 8, rect.y + 19);
+      };
+
+      drawPresetTile(plan2D, layout.plan2D, '2D plan');
+      drawPresetTile(view3D, layout.view3D, '3D view');
+      drawPresetTile(previewCanvas, layout.cameraView, 'Camera view');
+
+      const data = layout.data;
+      ctx.fillStyle = '#1a1d27';
+      ctx.fillRect(data.x, data.y, data.width, data.height);
+      ctx.strokeStyle = '#2a2d3a';
+      ctx.strokeRect(data.x, data.y, data.width, data.height);
+      ctx.fillStyle = '#000000bb';
+      ctx.fillRect(data.x, data.y, 180, 28);
+      ctx.fillStyle = '#e5e7eb';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('Calculator / data', data.x + 8, data.y + 19);
+
+      const dx = data.x + 20;
+      let dy = data.y + 54;
+      const dataLineH = 22;
+      ctx.fillStyle = '#3b82f6';
+      ctx.font = 'bold 15px monospace';
+      ctx.fillText('CAMERA & OPTICS', dx, dy);
+      dy += 28;
+      ctx.font = '13px monospace';
+      const selectedLines: Array<[string, string, string?]> = [
+        ['Camera:', `${camDef.manufacturer} ${camDef.model}`],
+        ['Sensor:', `${sensor.name} (${sensor.widthMm.toFixed(1)}×${sensor.heightMm.toFixed(1)}mm)`],
+        ['Mount:', camDef.mount],
+        ['Lens:', `${lensDef.manufacturer} ${lensDef.model}`],
+        ['Focal length:', `${focalLength.toFixed(1)}mm${targetCam.extenderActive > 1 ? ` (×${targetCam.extenderActive})` : ''}`],
+        ['Aperture:', `f/${targetCam.aperture}`],
+        ['Focus distance:', length(targetCam.focusDistance)],
+        ['Position:', `X=${length(targetCam.x)}  Y=${length(targetCam.y)}`],
+        ['Lens height:', length(targetCam.z)],
+        ['Orientation:', `Pan ${targetCam.pan.toFixed(1)}°  Tilt ${targetCam.tilt.toFixed(1)}°`],
+        ['Field of view:', `H ${fov.horizontalDeg.toFixed(2)}°  V ${fov.verticalDeg.toFixed(2)}°`, '#22c55e'],
+        ['Image at focus:', formatDimensions(fov.imageWidthAtDistance, fov.imageHeightAtDistance, units), '#22c55e'],
+        ['35mm equivalent:', `${fov.equivalentFocalLength.toFixed(0)}mm`],
+        ['Depth of field:', `${length(dof.nearLimit < 0.01 ? 0 : dof.nearLimit)} – ${dof.farLimit === Infinity ? '∞' : length(dof.farLimit)}`, '#22c55e'],
+        ['Hyperfocal:', length(dof.hyperfocal)],
+        ['1.8m person:', `${personPx.toFixed(0)}px / 1080 (${((personPx / 1080) * 100).toFixed(1)}%)`, '#22c55e'],
+      ];
+      if (adapterInfo) selectedLines.push(['Adapter:', adapterInfo.name, '#f59e0b']);
+      for (const [label, value, color] of selectedLines) {
+        ctx.fillStyle = color ?? '#e5e7eb';
+        ctx.fillText(label.padEnd(18) + value, dx, dy);
+        dy += dataLineH;
+      }
+
+      const filename = `${safeFilePart(targetCam.label)}${opts.variantLabel ? `_${safeFilePart(opts.variantLabel)}` : ''}_${safeFilePart(venue.name)}_v${projectVersion}.png`;
+      const blob = await new Promise<Blob | null>((resolve) => out.toBlob(resolve, 'image/png'));
+      if (needCameraChange) setExportCamera(originalCam);
+      if (needSelectionChange) useStore.getState().selectCamera(originalSelected);
+      return blob ? { filename, blob } satisfies ExportArtifact : null;
+    }
 
     // ── Layout constants ──
     const EW = 1920;
@@ -269,10 +446,6 @@ export default function ExportPanel() {
       ctx.textAlign = 'left';
       ctx.fillText(label, x + 8, y + 19);
     }
-
-    const plan2D = capture2DCanvas();
-    const view3D = capture3DCanvas();
-    const previewCanvas = capturePreviewCanvas();
 
     drawTile(plan2D, padding, headerH + padding, t('preview.export.tile2d', '2D plan'));
     drawTile(view3D, padding * 2 + tileW, headerH + padding, t('preview.export.tile3d', '3D view'));
@@ -637,11 +810,21 @@ export default function ExportPanel() {
 
     setExporting(true);
 
+    const savedViewPrefs = mode === 'selected-presets' ? getView3DPrefs() : null;
+    if (savedViewPrefs && savedViewPrefs.quality !== 'high') {
+      updateView3DPrefs({ quality: 'high' });
+    }
+    if (mode === 'selected-presets') {
+      // The hidden camera renderer may need to mount or rebuild its high-quality
+      // pipeline after a user has been working in Simple/Low mode.
+      await waitForPaint(650);
+    }
+
     let restoreLayout: (() => void) | null = null;
     const registry = getExportRegistry();
     if (typeof registry.prepareForExport === 'function') {
       try {
-        const prep = await registry.prepareForExport();
+        const prep = await registry.prepareForExport({ selectedPresetSheet: mode === 'selected-presets' });
         if (prep) restoreLayout = prep.restore;
       } catch { /* fall through */ }
     }
@@ -673,6 +856,7 @@ export default function ExportPanel() {
         try { framingApi.apply(savedFraming); } catch { /* ignore */ }
       }
       if (restoreLayout) restoreLayout();
+      if (savedViewPrefs) updateView3DPrefs(savedViewPrefs);
       setExporting(false);
       return;
     }
@@ -686,7 +870,9 @@ export default function ExportPanel() {
         const artifact = await renderOne(jobs[i].cam, {
           focalOverride: jobs[i].focalOverride,
           variantLabel: jobs[i].variantLabel,
+          displayLabel: jobs[i].displayLabel,
           cameraOverride: jobs[i].cameraOverride,
+          selectedPresetSheet: mode === 'selected-presets',
           // The first capture in the batch needs extra settle time so the WebGL
           // 3D canvas, freshly resized by the layout swap and the framing change,
           // actually paints visible content before drawImage reads from it.
@@ -714,6 +900,7 @@ export default function ExportPanel() {
         try { framingApi.apply(savedFraming); } catch { /* ignore */ }
       }
       if (restoreLayout) restoreLayout();
+      if (savedViewPrefs) updateView3DPrefs(savedViewPrefs);
       setExporting(false);
       setExportProgress({ current: 0, total: 0 });
     }

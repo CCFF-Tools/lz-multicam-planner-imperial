@@ -78,14 +78,14 @@ const KEINE_PRESETS: PreviewPreset[] = [];
 // steht.
 interface Bildquelle {
   capture: () => HTMLCanvasElement | null;
-  offscreen: (cssWidth?: number) => HTMLCanvasElement | null;
+  offscreen: (cssWidth?: number, options?: { rendered?: boolean; english?: boolean }) => HTMLCanvasElement | null;
 }
 const bildquellen: Bildquelle[] = [];
 function bildquelleMelden(): void {
   const reg = getExportRegistry();
   const q = bildquellen[bildquellen.length - 1];
   reg.capturePreviewCanvas = q ? () => q.capture() : null;
-  reg.renderPreviewOffscreen = q ? (w) => q.offscreen(w) : null;
+  reg.renderPreviewOffscreen = q ? (w, options) => q.offscreen(w, options) : null;
 }
 
 export interface KamerablickProps {
@@ -171,7 +171,7 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
   }, [cam, persons]);
 
   // `target`: fester Offscreen-Canvas (Shotlist-Framegrab, auch bei verstecktem Reiter).
-  const draw = useCallback((target?: { canvas: HTMLCanvasElement; cssW: number }) => {
+  const draw = useCallback((target?: { canvas: HTMLCanvasElement; cssW: number; rendered?: boolean; english?: boolean }) => {
     const canvas = target?.canvas ?? canvasRef.current;
     const wrap = wrapRef.current;
     const drawCam = cameras.find((camera) => camera.id === selectedCameraId);
@@ -179,8 +179,11 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
     const { customCameras, customLenses } = useStore.getState();
     const cssW = target ? target.cssW : wrap!.getBoundingClientRect().width;
     const dpr = target ? 1 : (window.devicePixelRatio || 1);
-    const gerendert = !target && look === 'rendered' && cssW > 0
+    const gerendert = (target?.rendered || (!target && look === 'rendered')) && cssW > 0
       && render3D(drawCam.id, (bildPuffer.current ??= document.createElement('canvas')), cssW, dpr, 'gross');
+    // A caller that explicitly requests a rendered export must never receive
+    // the simple drawing as a silent fallback.
+    if (target?.rendered && !gerendert) return;
     const projected = drawCameraView({
       canvas,
       cssW,
@@ -189,7 +192,7 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
       bare: false,
       scene: { venue, persons, walls, cameras, customCameras, customLenses },
       overlays: { grid: ov.grid, safeAreas: ov.safeAreas, thirds: ov.thirds, crosshair: ov.crosshair },
-      t,
+      t: target?.english ? (_key, english) => english : t,
       units,
       hintergrund: gerendert ? bildPuffer.current : null,
     });
@@ -221,9 +224,9 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
         copy.getContext('2d')?.drawImage(src, 0, 0);
         return copy;
       },
-      offscreen: (cssWidth = 640) => {
+      offscreen: (cssWidth = 640, options) => {
         const canvas = document.createElement('canvas');
-        drawRef.current({ canvas, cssW: cssWidth });
+        drawRef.current({ canvas, cssW: cssWidth, ...options });
         return canvas.width > 0 && canvas.height > 0 ? canvas : null;
       },
     };

@@ -229,6 +229,7 @@ function CameraCard({
     duplicateCamera,
     customLenses,
     addCustomLens,
+    updateCustomLens,
     removeCustomLens,
     favoriteCameraIds,
     favoriteLensIds,
@@ -245,6 +246,7 @@ function CameraCard({
   const isSelected = cam.id === selectedCameraId;
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showNewLens, setShowNewLens] = useState(false);
+  const [editingLensName, setEditingLensName] = useState<{ id: string; manufacturer: string; model: string } | null>(null);
   const [newLens, setNewLens] = useState({ manufacturer: '', model: '', focalMin: '10', focalMax: '100', aperture: '2.8', mount: 'B4', type: 'zoom' as 'zoom' | 'prime' });
   const [showNewCustomCam, setShowNewCustomCam] = useState(false);
   const [editingCustomCam, setEditingCustomCam] = useState<string | null>(null);
@@ -913,29 +915,90 @@ function CameraCard({
           {lensDef?.isCustom && (
             <UploadStatus item={{ kind: 'lens', lens: lensDef }} onUpload={() => setProposal({ kind: 'lens', lens: lensDef })} />
           )}
-          {/* Custom lens: delete button for active custom lens */}
-          {lensDef?.isCustom && (
-            <button
-              onClick={() => {
-                // Pick a replacement BEFORE removing — prefer a built-in compatible lens,
-                // then fall back to any non-removed custom lens, and finally any LENSES entry.
-                const replacement =
-                  compatDeduped.find((l) => !l.isCustom && l.id !== cam.lensId) ??
-                  compatDeduped.find((l) => l.id !== cam.lensId) ??
-                  LENSES[0];
-                removeCustomLens(cam.lensId);
-                if (replacement) {
-                  const supportsExtender = cam.extenderActive === 1 || !!replacement.extenderFactors?.includes(cam.extenderActive);
-                  updateCamera(cam.id, {
-                    lensId: replacement.id,
-                    focalLength: replacement.focalLengthMin,
-                    aperture: replacement.maxApertureWide,
-                    extenderActive: supportsExtender ? cam.extenderActive : 1,
-                  });
-                }
-              }}
-              className="text-[10px] text-bc-red-text hover:text-red-400 mt-0.5"
-            >{format(t('sidebar.cam.removeCustomLens', 'Delete custom lens "{name}"'), { name: `${lensDef.manufacturer} ${lensDef.model}` })}</button>
+          {lensDef && editingLensName?.id === lensDef.id && (
+            <div className="mt-1 space-y-1.5 border border-bc-border bg-bc-dark p-2">
+              <div className="text-[11px] font-medium text-bc-text">{t('sidebar.cam.renameLens', 'Rename lens')}</div>
+              <div className="grid grid-cols-2 gap-1">
+                <input
+                  className="bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright text-xs"
+                  aria-label={t('sidebar.form.manufacturer', 'Manufacturer')}
+                  placeholder={t('sidebar.form.manufacturer', 'Manufacturer')}
+                  value={editingLensName.manufacturer}
+                  onChange={(event) => setEditingLensName({ ...editingLensName, manufacturer: event.target.value })}
+                />
+                <input
+                  className="bg-bc-panel border border-bc-border px-1 py-0.5 text-bc-text-bright text-xs"
+                  aria-label={t('sidebar.form.model', 'Model')}
+                  placeholder={t('sidebar.form.model', 'Model')}
+                  value={editingLensName.model}
+                  onChange={(event) => setEditingLensName({ ...editingLensName, model: event.target.value })}
+                />
+              </div>
+              <div className="flex justify-end gap-1">
+                <button type="button" className="bc-btn-soft text-xs" onClick={() => setEditingLensName(null)}>
+                  {t('sidebar.cam.renameCancel', 'Cancel')}
+                </button>
+                <button
+                  type="button"
+                  className="bc-btn-primary text-xs"
+                  disabled={!editingLensName.manufacturer.trim() || !editingLensName.model.trim()}
+                  onClick={() => {
+                    const name = {
+                      manufacturer: editingLensName.manufacturer.trim(),
+                      model: editingLensName.model.trim(),
+                    };
+                    if (lensDef.isCustom) {
+                      updateCustomLens(editingLensName.id, name);
+                    } else {
+                      // Built-in and shared-library definitions stay
+                      // authoritative. Renaming creates a local lens entry and
+                      // assigns it to this camera, preserving every optical
+                      // property from the source lens.
+                      const newLensId = addCustomLens({ ...lensDef, ...name });
+                      updateCamera(cam.id, { lensId: newLensId });
+                    }
+                    setEditingLensName(null);
+                  }}
+                >
+                  {t('sidebar.cam.renameSave', 'Save name')}
+                </button>
+              </div>
+            </div>
+          )}
+          {lensDef && (
+            <div className="mt-0.5 flex flex-wrap items-center gap-3 text-[10px]">
+              <button
+                type="button"
+                onClick={() => setEditingLensName({ id: lensDef.id, manufacturer: lensDef.manufacturer, model: lensDef.model })}
+                className="inline-flex items-center gap-1 text-bc-accent hover:text-bc-text-bright"
+              >
+                <FiEdit2 size={11} /> {t('sidebar.cam.renameLens', 'Rename lens')}
+              </button>
+              {lensDef.isCustom && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Pick a replacement BEFORE removing — prefer a built-in compatible lens,
+                    // then fall back to any non-removed custom lens, and finally any LENSES entry.
+                    const replacement =
+                      compatDeduped.find((l) => !l.isCustom && l.id !== cam.lensId) ??
+                      compatDeduped.find((l) => l.id !== cam.lensId) ??
+                      LENSES[0];
+                    removeCustomLens(cam.lensId);
+                    if (replacement) {
+                      const supportsExtender = cam.extenderActive === 1 || !!replacement.extenderFactors?.includes(cam.extenderActive);
+                      updateCamera(cam.id, {
+                        lensId: replacement.id,
+                        focalLength: replacement.focalLengthMin,
+                        aperture: replacement.maxApertureWide,
+                        extenderActive: supportsExtender ? cam.extenderActive : 1,
+                      });
+                    }
+                  }}
+                  className="text-bc-red-text hover:text-red-400"
+                >{format(t('sidebar.cam.removeCustomLens', 'Delete custom lens "{name}"'), { name: `${lensDef.manufacturer} ${lensDef.model}` })}</button>
+              )}
+            </div>
           )}
           {/* Inline custom lens creation form */}
           {showNewLens && (
