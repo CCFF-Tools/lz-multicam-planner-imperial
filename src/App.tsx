@@ -469,10 +469,36 @@ export default function App() {
 
   useEffect(() => {
     const registry = getExportRegistry();
-    registry.prepareForExport = async () => {
+    registry.prepareForExport = async (options) => {
       const previousMode = layoutMode;
       const previousFocusTab = focusTabId;
       const previousModelJson = model.toJson();
+      const previousSidebarCollapsed = sidebarCollapsed;
+
+      if (options?.selectedPresetSheet) {
+        // Give the 3D renderer the full work area while its export framing is
+        // calculated. The 2D plan and Camera View both support offscreen
+        // capture, so keeping their tabs visible would only make the 3D source
+        // unnecessarily narrow.
+        if (!previousSidebarCollapsed) setSidebarCollapsed(true);
+        setFocusTabId('tab-3d');
+        setLayoutMode('focus');
+        applyLayoutJson(createFocusLayoutJson(t, 'tab-3d'));
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            setTimeout(resolve, 1000);
+          }));
+        });
+        return {
+          restore: () => {
+            setSidebarCollapsed(previousSidebarCollapsed);
+            setFocusTabId(previousFocusTab);
+            setLayoutMode(previousMode);
+            applyLayoutJson(previousModelJson);
+          },
+        };
+      }
+
       if (previousMode !== 'grid') {
         applyLayoutJson(createGridLayoutJson(t));
         setLayoutMode('grid');
@@ -496,7 +522,7 @@ export default function App() {
       };
     };
     return () => { registry.prepareForExport = null; };
-  }, [applyLayoutJson, focusTabId, layoutMode, model, t]);
+  }, [applyLayoutJson, focusTabId, layoutMode, model, setSidebarCollapsed, sidebarCollapsed, t]);
 
   return (
     <ErrorBoundary>

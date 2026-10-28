@@ -7,8 +7,11 @@ export interface ExportRegistry {
    * Shotlist-Framegrabs (#62 Punkt 5): `capturePreviewCanvas` kopiert den
    * sichtbaren Canvas und liefert nichts, wenn dessen Tab versteckt (0 px) ist.
    */
-  renderPreviewOffscreen: ((cssWidth?: number) => HTMLCanvasElement | null) | null;
-  prepareForExport: (() => Promise<{ restore: () => void } | null>) | null;
+  renderPreviewOffscreen: ((
+    cssWidth?: number,
+    options?: { rendered?: boolean; english?: boolean },
+  ) => HTMLCanvasElement | null) | null;
+  prepareForExport: ((options?: { selectedPresetSheet?: boolean }) => Promise<{ restore: () => void } | null>) | null;
   framing3D: {
     save: () => FramingState;
     apply: (s: FramingState) => void;

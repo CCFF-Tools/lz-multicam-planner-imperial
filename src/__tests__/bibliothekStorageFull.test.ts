@@ -71,6 +71,18 @@ describe('die Bibliothek meldet, wenn nicht geschrieben wurde', () => {
     expect(useStore.getState().libraryStorageFull).toBe(true);
   });
 
+  it('benennt eine eigene Optik um, ohne ihre Id oder Kamerareferenzen zu ändern', async () => {
+    const useStore = await laden();
+    const id = useStore.getState().addCustomLens(optikSpec);
+    useStore.setState({ cameras: [{ id: 'cam-rename', lensId: id } as never] });
+
+    useStore.getState().updateCustomLens(id, { manufacturer: 'Canon', model: 'CJ20ex7.8B' });
+
+    expect(useStore.getState().customLenses[0]).toMatchObject({ id, manufacturer: 'Canon', model: 'CJ20ex7.8B' });
+    expect(useStore.getState().cameras[0].lensId).toBe(id);
+    expect(JSON.parse(store['multicam-custom-lenses'])[0]).toMatchObject({ id, manufacturer: 'Canon', model: 'CJ20ex7.8B' });
+  });
+
   it('bei freiem Speicher bleibt der Merker aus', async () => {
     // Die Gegenprobe: ohne sie waere „immer voll melden" ebenfalls gruen.
     const useStore = await laden();
