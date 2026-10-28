@@ -141,6 +141,9 @@ export type CameraMountType =
   | 'cablecam' | 'drone' | 'scissorlift' | 'remotehead' | 'carmount' | 'rickshaw'
   | 'gimbal' | 'handheld' | 'steadicam' | 'fixed';
 
+/** How a fixed camera attaches to the building. Missing values retain automatic legacy behavior. */
+export type FixedMountLocation = 'auto' | 'wall' | 'ceiling';
+
 /**
  * Die Rig-Namen — in der QUELLSPRACHE des Repos, also englisch (E-28).
  *
@@ -423,6 +426,8 @@ export interface VenueCamera {
    * (jib swing, dolly travel).
    */
   mountType?: CameraMountType;
+  /** Explicit building attachment for a fixed mount; `auto` retains height-based inference. */
+  fixedMountLocation?: FixedMountLocation;
   /**
    * Konkretes Rig aus dem Katalog (`data/rigs.ts`) — z. B. ein 18-ft-Jimmy-Jib
    * statt nur "Jib". Setzt Hoehenbereich und Fahrweg auf die echten Maße des

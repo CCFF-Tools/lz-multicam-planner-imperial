@@ -28,7 +28,7 @@ import {
 } from '../../utils/cameraCardExtras';
 import { FiPlus, FiTrash2, FiCopy, FiChevronDown, FiChevronUp, FiEye, FiEyeOff, FiUpload, FiUser, FiMap, FiMaximize2, FiLock, FiUnlock, FiStar, FiEdit2, FiRotateCcw, FiHome, FiImage, FiColumns, FiUsers, FiVideo, FiTarget } from 'react-icons/fi';
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import type { StageObjectType, Camera, CameraMountType, VenueCamera, WallFit, WallPattern } from '../../types';
+import type { StageObjectType, Camera, CameraMountType, FixedMountLocation, VenueCamera, WallFit, WallPattern } from '../../types';
 
 import { rigsForType, trackSectionPlan } from '../../data/rigs';
 import { clampHeight, clampTrack, rigLimits } from '../../utils/rigLimits';
@@ -1224,6 +1224,23 @@ function CameraCard({
                     ))}
                   </select>
                 </FieldRow>
+
+                {limits.type === 'fixed' && (
+                  <FieldRow label={t('sidebar.cam.fixedMountLocation', 'Fixed mount location')} htmlFor={`fixed-mount-location-${cam.id}`}>
+                    <select
+                      id={`fixed-mount-location-${cam.id}`}
+                      className="block w-full border border-bc-border bg-bc-panel-raised text-bc-text-bright"
+                      style={{ padding: '3px 6px' }}
+                      value={cam.fixedMountLocation ?? 'auto'}
+                      title={t('sidebar.cam.fixedMountLocation.title', 'Automatic uses camera type, lens height, and ceiling height.')}
+                      onChange={(event) => updateCamera(cam.id, { fixedMountLocation: event.target.value as FixedMountLocation })}
+                    >
+                      <option value="auto">{t('sidebar.cam.fixedMountLocation.auto', 'Automatic')}</option>
+                      <option value="wall">{t('sidebar.cam.fixedMountLocation.wall', 'Wall')}</option>
+                      <option value="ceiling">{t('sidebar.cam.fixedMountLocation.ceiling', 'Ceiling')}</option>
+                    </select>
+                  </FieldRow>
+                )}
 
                 {catRigs.length > 0 && (
                   <FieldRow label={t('sidebar.cam.rigModel', 'Rig model')} htmlFor={`rig-${cam.id}`}>

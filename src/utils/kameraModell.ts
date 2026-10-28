@@ -9,6 +9,7 @@ import type { Camera, CameraMountType, Lens, VenueCamera } from '../types';
 import type { Detail, HalterungArt, KameraRig, KameraRigOptionen, KoerperArt, ObjektivArt, Tally } from '../avplan/scene3d';
 import { rigLimits } from './rigLimits';
 import { rigYaw } from './camera';
+import { resolveFixedMountLocation } from './fixedMount';
 
 /**
  * Montagen, deren Unterbau das Paket baut. Alle anderen (Cable-Cam, Drohne,
@@ -82,11 +83,8 @@ export function kameraModell(cam: VenueCamera, camDef: Camera | undefined, lens:
   const limits = rigLimits(cam);
   const mount = cam.mountType ?? 'tripod';
   let halterung: HalterungArt = HALTERUNG[mount] ?? 'keine';
-  // PTZ fest montiert: unter der Decke, wenn sie hoch haengt oder die Decke
-  // nah ist, sonst an der Wand.
-  if (koerper === 'ptz' && mount === 'fixed') {
-    const nahAnDecke = umfeld.deckeM !== undefined && umfeld.deckeM - cam.z < 1;
-    halterung = cam.z >= 2.5 || nahAnDecke ? 'decke' : 'wand';
+  if (mount === 'fixed') {
+    halterung = resolveFixedMountLocation(cam, koerper === 'ptz', umfeld.deckeM) === 'ceiling' ? 'decke' : 'wand';
   }
   const skelett = halterung === 'keine';
 
