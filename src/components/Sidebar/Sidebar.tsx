@@ -35,6 +35,7 @@ import { clampHeight, clampTrack, rigLimits } from '../../utils/rigLimits';
 import { rigYaw } from '../../utils/camera';
 import { defaultWallHeight } from '../../utils/wallHeight';
 import { WallHeightField } from './WallHeightField';
+import WallOpeningsEditor from './WallOpeningsEditor';
 import { DEFAULT_PATTERN_ROWS, PATTERN_ROWS_MAX, PATTERN_ROWS_MIN } from '../../utils/wallSurface';
 import { defaultWallControlPoint, wallIsCurved } from '../../utils/wallPath';
 import { FieldRow, Group, Note, Readout, ValueSlider } from './fields';
@@ -501,6 +502,16 @@ function CameraCard({
               onChange={(e) => updateCamera(cam.id, { label: e.target.value })}
             />
           </FieldRow>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-bc-muted">
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input type="checkbox" className="accent-bc-accent" checked={cam.showLabel2D !== false} onChange={(event) => updateCamera(cam.id, { showLabel2D: event.target.checked })} />
+              {t('sidebar.planLabel', '2D label')}
+            </label>
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input type="checkbox" className="accent-bc-accent" checked={cam.showHeight2D === true} onChange={(event) => updateCamera(cam.id, { showHeight2D: event.target.checked })} />
+              {t('sidebar.itemPlanHeight', '2D height')}
+            </label>
+          </div>
 
           {/* Mount-Mismatch ist ein echtes Problem (die Werte stimmen dann
               nicht), der Adapter dagegen nur ein Zustand — deshalb getrennte
@@ -2793,6 +2804,7 @@ export default function Sidebar() {
                     )}
                   </div>
                 )}
+                <WallOpeningsEditor wall={w} defaultHeightM={defaultWallHeight(venue)} onChange={(openings) => updateWall(w.id, { openings })} />
               </div>
             ))}
             <button
@@ -2869,6 +2881,16 @@ export default function Sidebar() {
                         <LengthInput className="w-full border border-bc-border bg-bc-panel px-1 py-0.5 text-bc-text-bright" aria-label={`${p.label} suspension drop`} value={p.suspensionDropM ?? 1} min={0} onChange={(suspensionDropM) => updatePerson(p.id, { suspensionDropM })} />
                       </label>
                     )}
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-bc-muted">
+                    <label className="flex cursor-pointer items-center gap-1.5">
+                      <input type="checkbox" className="accent-bc-accent" checked={p.showLabel2D !== false} onChange={(event) => updatePerson(p.id, { showLabel2D: event.target.checked })} />
+                      {t('sidebar.planLabel', '2D label')}
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-1.5">
+                      <input type="checkbox" className="accent-bc-accent" checked={p.showHeight2D !== false} onChange={(event) => updatePerson(p.id, { showHeight2D: event.target.checked })} />
+                      {t('sidebar.itemPlanHeight', '2D height')}
+                    </label>
                   </div>
                   <span className="block text-[10px] text-bc-dim">({formatLengthWithUnit(p.x, units)}, {formatLengthWithUnit(p.y, units)})</span>
                 </div>

@@ -285,6 +285,9 @@ export interface ReferencePerson {
   color?: string;
   /** When true, the object can't be dragged in the 2D/3D plan. */
   locked?: boolean;
+  /** Per-item 2D annotation controls. Missing values preserve legacy display. */
+  showLabel2D?: boolean;
+  showHeight2D?: boolean;
 }
 
 // ── Background floor plan ──
@@ -507,6 +510,9 @@ export interface VenueCamera {
   notes?: string;
   /** When true, the camera marker can't be dragged in the 2D plan. */
   locked?: boolean;
+  /** Per-camera 2D annotation controls. Missing values preserve legacy display. */
+  showLabel2D?: boolean;
+  showHeight2D?: boolean;
   /**
    * BEDARF 130 — woran diese Kamera im Netz wiederzuerkennen ist.
    *

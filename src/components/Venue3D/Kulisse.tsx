@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 import type { Stage } from '../../types';
 import type { StufenWerte } from '../../avplan/scene3d';
 import { istSpielfeld } from '../../utils/showRig';
-import { wandDicke, wandStuecke } from '../../utils/wallOpenings';
+import { wandDicke, wandOeffnungStuecke, wandStuecke } from '../../utils/wallOpenings';
 import { Arena, CrowdAndSeating, FieldMesh, LedWalls, ShowRig, StageBodyReal, WallSurfaceMaterial } from './ShowScene';
 import type { KulissenDaten } from './kulissenDaten';
 
@@ -70,16 +70,40 @@ export function Kulisse({ daten, show, tageslicht = false, simple, werte, audien
 
       {walls.map((w) => {
         const dicke = wandDicke(w);
-        return wandStuecke(w, w.height).map((st, i) => (
-          <mesh key={`${w.id}-${i}`} position={[st.x, st.unten + st.hoehe / 2, st.y]} rotation={[0, -st.winkel, 0]}>
-            <boxGeometry args={[st.laenge, st.hoehe, dicke]} />
-            {venue.wallMaterial
-              ? <WallSurfaceMaterial art={venue.wallMaterial} laengeM={st.laenge} hoeheM={st.hoehe} farbe={w.color} />
-              : show
-              ? <meshStandardMaterial color={w.color ?? '#3a3d42'} roughness={0.9} />
-              : <meshStandardMaterial color={w.color ?? '#6b7280'} opacity={0.6} transparent />}
-          </mesh>
-        ));
+        return (
+          <group key={w.id}>
+            {wandStuecke(w, w.height).map((st, i) => (
+              <mesh key={`wall-${i}`} position={[st.x, st.unten + st.hoehe / 2, st.y]} rotation={[0, -st.winkel, 0]}>
+                <boxGeometry args={[st.laenge, st.hoehe, dicke]} />
+                {venue.wallMaterial
+                  ? <WallSurfaceMaterial art={venue.wallMaterial} laengeM={st.laenge} hoeheM={st.hoehe} farbe={w.color} />
+                  : show
+                  ? <meshStandardMaterial color={w.color ?? '#3a3d42'} roughness={0.9} />
+                  : <meshStandardMaterial color={w.color ?? '#6b7280'} opacity={0.6} transparent />}
+              </mesh>
+            ))}
+            {(w.openings ?? []).flatMap((opening, openingIndex) => {
+              // Legacy and plan-detected generic openings remain empty holes.
+              if (opening.kind !== 'door' && opening.kind !== 'window') return [];
+              const bounded = {
+                ...opening,
+                bottom: Math.max(0, Math.min(w.height, opening.bottom)),
+                top: Math.max(0, Math.min(w.height, opening.top)),
+              };
+              const glass = opening.kind === 'window' || opening.material === 'glass';
+              const material = opening.material ?? 'solid';
+              const color = opening.color ?? (material === 'wood' ? '#8b5a2b' : material === 'metal' ? '#64748b' : '#6b4f3a');
+              return wandOeffnungStuecke(w, bounded).map((piece, pieceIndex) => (
+                <mesh key={`opening-${opening.id ?? openingIndex}-${pieceIndex}`} position={[piece.x, piece.unten + piece.hoehe / 2, piece.y]} rotation={[0, -piece.winkel, 0]}>
+                  <boxGeometry args={[piece.laenge, piece.hoehe, Math.max(0.025, dicke * 0.35)]} />
+                  {glass
+                    ? <meshPhysicalMaterial color="#79cfe8" roughness={0.08} metalness={0.02} transmission={0.55} transparent opacity={0.38} depthWrite={false} />
+                    : <meshStandardMaterial color={color} roughness={material === 'metal' ? 0.28 : material === 'wood' ? 0.82 : 0.65} metalness={material === 'metal' ? 0.72 : 0.03} />}
+                </mesh>
+              ));
+            })}
+          </group>
+        );
       })}
     </>
   );

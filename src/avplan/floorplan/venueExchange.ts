@@ -24,12 +24,18 @@ export const VENUE_EXCHANGE_VERSION = 1 as const
 export interface VenueExchangePerson {
   id: string; x: number; y: number; height: number; label: string
   rotationDeg?: number; width?: number; objectType?: string; pose?: 'standing' | 'sitting'; facing?: number; color?: string
+  showLabel2D?: boolean; showHeight2D?: boolean
 }
 /** Oeffnung in einer Wand: Lage ab (x1,y1) entlang der Wand, Bruestung
  *  (`bottom`) und Sturz (`top`) ueber dem Boden, alles in Metern. */
 export interface VenueWallOpening {
   offset: number; width: number; bottom: number; top: number
   kind?: 'door' | 'window' | 'opening'
+  /** Stable local identity for editing; older exchange files omit it. */
+  id?: string
+  label?: string
+  material?: 'solid' | 'wood' | 'metal' | 'glass'
+  color?: string
 }
 export interface VenueExchangeWall {
   id: string; x1: number; y1: number; x2: number; y2: number; height: number

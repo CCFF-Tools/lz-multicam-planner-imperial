@@ -19,11 +19,14 @@ const venue: Venue = {
   stages: [{ id: 'st1', x: 8, y: 10, width: 6, height: 4, label: 'Buehne' }],
 };
 const persons: ReferencePerson[] = [
-  { id: 'p1', x: 5, y: 6, height: 1.8, width: 0.5, label: 'Moderator', objectType: 'person' },
+  { id: 'p1', x: 5, y: 6, height: 1.8, width: 0.5, label: 'Moderator', objectType: 'person', showLabel2D: false, showHeight2D: true },
   { id: 'p2', x: 9, y: 7, height: 1.0, width: 1.2, label: 'Drumkit', objectType: 'drums', color: '#ff8800' },
 ];
 const walls: Wall[] = [
-  { id: 'w1', x1: 0, y1: 0, x2: 24, y2: 0, height: 3, label: 'Nordwand' },
+  { id: 'w1', x1: 0, y1: 0, x2: 24, y2: 0, height: 3, label: 'Nordwand', openings: [
+    { id: 'door-1', label: 'Main door', kind: 'door', offset: 2, width: 0.9, bottom: 0, top: 2.1, material: 'wood', color: '#80552f' },
+    { id: 'window-1', label: 'Fixed window', kind: 'window', offset: 6, width: 1.4, bottom: 0.9, top: 2.2, material: 'glass' },
+  ] },
 ];
 const backgroundPlan: BackgroundPlan = {
   dataUrl: 'data:image/png;base64,AAAA',
@@ -56,7 +59,9 @@ describe('venueExchange (MultiCam)', () => {
     expect(back.venue.stages[0].height).toBe(4); // depth → multicam Stage.height
     expect(back.persons.map((p) => p.label)).toEqual(['Moderator', 'Drumkit']);
     expect(back.persons[1].objectType).toBe('drums');
+    expect(back.persons[0]).toMatchObject({ showLabel2D: false, showHeight2D: true });
     expect(back.walls[0].label).toBe('Nordwand');
+    expect(back.walls[0].openings).toEqual(walls[0].openings);
     // Skalierung verlustfrei zurueck (isotrop).
     expect(back.backgroundPlan?.scaleX).toBeCloseTo(0.02, 9);
     expect(back.backgroundPlan?.scaleY).toBeCloseTo(0.02, 9);

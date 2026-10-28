@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { dxfLesen, istDxfDatei, planErkennen } from '../avplan/floorplan';
 import { vorschauAusPlan } from '../lib/planLauf';
 import { vorschauImBereich } from '../lib/planVorschau';
-import { wandDicke, wandStuecke } from '../utils/wallOpenings';
+import { wandDicke, wandOeffnungStuecke, wandStuecke } from '../utils/wallOpenings';
 import type { BackgroundPlan, Wall } from '../types';
 
 // Ein DXF in Millimetern: Raum 6,00 × 4,00 m lichte Weite, 24 cm Wand, eine
@@ -134,6 +134,25 @@ describe('Wand mit Öffnungen als Quader', () => {
   it('fällt ohne Angabe auf die bisherige Wandstärke zurück', () => {
     expect(wandDicke({})).toBeCloseTo(0.15, 3);
     expect(wandDicke({ thicknessM: 0.24 })).toBeCloseTo(0.24, 3);
+  });
+
+  it('places physical door/window spans along straight and curved walls', () => {
+    const straight = wandOeffnungStuecke(wand(undefined), { offset: 1, width: 1.5, bottom: 0.8, top: 2.2, kind: 'window' });
+    expect(straight).toHaveLength(1);
+    expect(straight[0]).toMatchObject({ x: 1.75, y: 0, unten: 0.8 });
+    expect(straight[0].laenge).toBeCloseTo(1.5, 6);
+    expect(straight[0].hoehe).toBeCloseTo(1.4, 6);
+
+    const curved = { ...wand(undefined), cx: 2, cy: 2 };
+    const curvedPieces = wandOeffnungStuecke(curved, { offset: 0.5, width: 2, bottom: 0, top: 2.1, kind: 'door' });
+    expect(curvedPieces.length).toBeGreaterThan(1);
+    expect(curvedPieces.reduce((sum, piece) => sum + piece.laenge, 0)).toBeCloseTo(2, 6);
+    expect(curvedPieces.every((piece) => piece.unten === 0 && piece.hoehe === 2.1)).toBe(true);
+
+    const angled = { ...wand(undefined), x2: 4, y2: 3 };
+    const angledPiece = wandOeffnungStuecke(angled, { offset: 1, width: 1, bottom: 0, top: 2, kind: 'door' });
+    expect(angledPiece).toHaveLength(1);
+    expect(angledPiece[0].winkel).toBeCloseTo(Math.atan2(3, 4), 8);
   });
 });
 
