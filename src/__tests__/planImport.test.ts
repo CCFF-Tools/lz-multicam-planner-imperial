@@ -164,6 +164,10 @@ describe('Wand mit Öffnungen als Quader', () => {
     expect(reveals.every((reveal) => reveal.unten === 0.8)).toBe(true);
     expect(reveals.every((reveal) => Math.abs(reveal.hoehe - 1.4) < 1e-9)).toBe(true);
 
+    const curvedReveals = wandOeffnungsLaibungen({ ...wall, cx: 2, cy: 2 }, 3);
+    expect(curvedReveals).toHaveLength(2);
+    expect(curvedReveals[0].winkel).not.toBeCloseTo(curvedReveals[1].winkel, 4);
+
     const noCaps = wallBoxGeometry(2, 3, 0.15, { start: false, end: false });
     const startOnly = wallBoxGeometry(2, 3, 0.15, { start: true, end: false });
     const bothCaps = wallBoxGeometry(2, 3, 0.15, { start: true, end: true });

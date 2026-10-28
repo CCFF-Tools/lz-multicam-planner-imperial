@@ -9,7 +9,6 @@ import type { StufenWerte } from '../../avplan/scene3d';
 import { istSpielfeld } from '../../utils/showRig';
 import { wandDicke, wandOeffnungStuecke, wandOeffnungsLaibungen, wandStuecke } from '../../utils/wallOpenings';
 import { wallBoxGeometry } from '../../utils/wallGeometry';
-import { wallIsCurved, wallPathLength } from '../../utils/wallPath';
 import { Arena, CrowdAndSeating, FieldMesh, LedWalls, ShowRig, StageBodyReal, WallSurfaceMaterial } from './ShowScene';
 import type { KulissenDaten } from './kulissenDaten';
 
@@ -101,15 +100,15 @@ export function Kulisse({ daten, show, tageslicht = false, simple, werte, audien
 
       {walls.map((w) => {
         const dicke = wandDicke(w);
-        const curved = wallIsCurved(w);
-        const pathLength = wallPathLength(w);
-        const direction = pathLength > 1e-6 ? { x: (w.x2 - w.x1) / pathLength, y: (w.y2 - w.y1) / pathLength } : { x: 1, y: 0 };
+        const reveals = wandOeffnungsLaibungen(w, w.height);
+        const atReveal = (x: number, y: number) => reveals.some((cap) => Math.hypot(cap.x - x, cap.y - y) < 1e-5);
         return (
           <group key={w.id}>
             {wandStuecke(w, w.height).map((st, i) => {
-              const along = (st.x - w.x1) * direction.x + (st.y - w.y1) * direction.y;
-              const startCap = curved || along - st.laenge / 2 <= 1e-5;
-              const endCap = curved || along + st.laenge / 2 >= pathLength - 1e-5;
+              const dx = Math.cos(st.winkel) * st.laenge / 2;
+              const dy = Math.sin(st.winkel) * st.laenge / 2;
+              const startCap = !atReveal(st.x - dx, st.y - dy);
+              const endCap = !atReveal(st.x + dx, st.y + dy);
               return (
                 <mesh key={`wall-${i}`} position={[st.x, st.unten + st.hoehe / 2, st.y]} rotation={[0, -st.winkel, 0]}>
                   <WallBoxGeometry lengthM={st.laenge} heightM={st.hoehe} thicknessM={dicke} startCap={startCap} endCap={endCap} />
@@ -117,7 +116,7 @@ export function Kulisse({ daten, show, tageslicht = false, simple, werte, audien
                 </mesh>
               );
             })}
-            {!curved && wandOeffnungsLaibungen(w, w.height).map((cap, index) => (
+            {reveals.map((cap, index) => (
               <mesh key={`reveal-${index}`} position={[cap.x, cap.unten + cap.hoehe / 2, cap.y]} rotation={[0, -cap.winkel, 0]}>
                 <boxGeometry args={[0.004, cap.hoehe, dicke]} />
                 <WallMaterial art={venue.wallMaterial} lengthM={dicke} heightM={cap.hoehe} color={w.color} show={show} />
