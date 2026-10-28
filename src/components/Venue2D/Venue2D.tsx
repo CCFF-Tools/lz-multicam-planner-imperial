@@ -21,7 +21,8 @@ import { useTranslation, format } from '../../i18n';
 import { useIstHell } from '../../lib/useIstHell';
 import { planAblage } from '../../avplan/floorplan';
 import PlanVorschauOverlay from './PlanVorschauOverlay';
-import { wandDicke } from '../../utils/wallOpenings';
+import { wandDicke, wandOeffnungStuecke } from '../../utils/wallOpenings';
+import { planItemLabel } from '../../utils/planItemLabel';
 import { usePlanLaden } from '../../lib/usePlanLaden';
 import EditGroupsBar from './EditGroupsBar';
 import PlanVisibilityBar from './PlanVisibilityBar';
@@ -1004,6 +1005,24 @@ export default function Venue2D() {
                 updateWall(w.id, { x1: w.x1 + dx, y1: w.y1 + dy, x2: w.x2 + dx, y2: w.y2 + dy, ...(w.cx !== undefined && w.cy !== undefined ? { cx: w.cx + dx, cy: w.cy + dy } : {}) });
               }}
             />
+            {(w.openings ?? []).map((opening, openingIndex) => {
+              const pieces = wandOeffnungStuecke(w, opening);
+              const glass = opening.kind === 'window' || opening.material === 'glass';
+              const color = glass ? '#38bdf8' : (opening.color ?? (opening.material === 'metal' ? '#94a3b8' : '#8b5a2b'));
+              const centre = pieces.length > 0
+                ? { x: pieces.reduce((sum, piece) => sum + piece.x * piece.laenge, 0) / pieces.reduce((sum, piece) => sum + piece.laenge, 0), y: pieces.reduce((sum, piece) => sum + piece.y * piece.laenge, 0) / pieces.reduce((sum, piece) => sum + piece.laenge, 0) }
+                : null;
+              return (
+                <React.Fragment key={opening.id ?? `${w.id}-opening-${openingIndex}`}>
+                  {pieces.map((piece, pieceIndex) => {
+                    const dx = Math.cos(piece.winkel) * piece.laenge * ppm / 2;
+                    const dy = Math.sin(piece.winkel) * piece.laenge * ppm / 2;
+                    return <Line key={pieceIndex} points={[piece.x * ppm - dx, piece.y * ppm - dy, piece.x * ppm + dx, piece.y * ppm + dy]} stroke={color} strokeWidth={Math.max(3, wandDicke(w) * ppm * 0.7)} dash={glass ? [5, 3] : undefined} listening={false} />;
+                  })}
+                  {centre && <Text x={centre.x * ppm - 10} y={centre.y * ppm - 6} width={20} text={opening.kind === 'window' ? 'W' : opening.kind === 'door' ? 'D' : 'O'} fontSize={8} fontStyle="bold" fill={color} align="center" listening={false} />}
+                </React.Fragment>
+              );
+            })}
             {selected && !lockWalls && <>
               <Circle x={w.x1 * ppm} y={w.y1 * ppm} radius={5} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingPlanShape} onDragMove={(e) => handleWallEndpointDragMove(w, 'start', e)} />
               <Circle x={w.x2 * ppm} y={w.y2 * ppm} radius={5} fill="#132040" stroke="#f59e0b" strokeWidth={2} draggable={!drawingPlanShape} onDragMove={(e) => handleWallEndpointDragMove(w, 'end', e)} />
@@ -1104,7 +1123,17 @@ export default function Venue2D() {
                 <Circle radius={Math.max(5, footW / 3)} fill={col} stroke="#fff" strokeWidth={1} opacity={0.85} />
               )}
               </Group>
-              <Text x={-40} y={Math.max(8, footD / 2 + 4)} text={`${p.locked ? '🔒 ' : ''}${p.label} (${length(p.height)}${type === 'linear-light' ? ` · drop ${length(p.suspensionDropM ?? 1)}` : ''})`} fontSize={9} fill={col} align="center" width={80} listening={false} />
+              {(() => {
+                const text = planItemLabel({
+                  label: `${p.locked ? '🔒 ' : ''}${p.label}`,
+                  heightText: length(p.height),
+                  showLabel: p.showLabel2D,
+                  showHeight: p.showHeight2D,
+                  defaultShowHeight: true,
+                  suffix: type === 'linear-light' ? ` · drop ${length(p.suspensionDropM ?? 1)}` : '',
+                });
+                return text ? <Text x={-60} y={Math.max(8, footD / 2 + 4)} text={text} fontSize={9} lineHeight={1.05} fill={col} align="center" width={120} wrap="word" listening={false} /> : null;
+              })()}
             </Group>
           );
         })}
@@ -1162,7 +1191,16 @@ export default function Venue2D() {
                   />
                 </>
               )}
-              <Text x={-16} y={12} text={cam.locked ? `${cam.label} 🔒` : cam.label} fontSize={11} fill={P.beschriftung} fontStyle="bold" align="center" width={32} />
+              {(() => {
+                const text = planItemLabel({
+                  label: cam.locked ? `${cam.label} 🔒` : cam.label,
+                  heightText: length(cam.z),
+                  showLabel: cam.showLabel2D,
+                  showHeight: cam.showHeight2D,
+                  defaultShowHeight: false,
+                });
+                return text ? <Text x={-60} y={12} text={text} fontSize={11} lineHeight={1.05} fill={P.beschriftung} fontStyle="bold" align="center" width={120} wrap="word" listening={false} /> : null;
+              })()}
             </Group>
           );
         })}

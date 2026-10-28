@@ -184,6 +184,7 @@ export function toVenueExchange(input: MultiCamVenueInput): VenueExchange {
         return {
           id: p.id, x: p.x, y: p.y, height: p.height, label: p.label,
           width: p.width, depth: p.depth, suspensionDropM: p.suspensionDropM, objectType: p.objectType, color: p.color, rotationDeg: p.rotationDeg,
+          showLabel2D: p.showLabel2D, showHeight2D: p.showHeight2D,
           ...(f?.pose !== undefined ? { pose: f.pose } : {}),
           ...(f?.facing !== undefined ? { facing: f.facing } : {}),
         };
@@ -301,6 +302,8 @@ export function fromVenueExchange(ex: VenueExchange): MultiCamVenueResult {
         ...(typeof local.suspensionDropM === 'number' ? { suspensionDropM: local.suspensionDropM } : {}),
         label: p.label, objectType: (p.objectType as StageObjectType) ?? 'person', color: p.color,
         rotationDeg: Number.isFinite(p.rotationDeg) ? p.rotationDeg : undefined,
+        ...(typeof p.showLabel2D === 'boolean' ? { showLabel2D: p.showLabel2D } : {}),
+        ...(typeof p.showHeight2D === 'boolean' ? { showHeight2D: p.showHeight2D } : {}),
       };
     }),
     walls: (v.walls ?? []).map((w) => ({
