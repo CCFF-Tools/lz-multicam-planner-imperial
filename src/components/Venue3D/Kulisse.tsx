@@ -7,7 +7,7 @@ import type { Stage } from '../../types';
 import type { RaumWand } from '../../avplan/floorplan';
 import type { StufenWerte } from '../../avplan/scene3d';
 import { istSpielfeld } from '../../utils/showRig';
-import { wandDicke, wandOeffnungStuecke, wandOeffnungsLaibungen, wandStuecke } from '../../utils/wallOpenings';
+import { doorHardwarePlacement, resolvedDoorHardware, wandDicke, wandOeffnungStuecke, wandOeffnungsLaibungen, wandStuecke, type DoorHardware } from '../../utils/wallOpenings';
 import { wallBoxGeometry } from '../../utils/wallGeometry';
 import { Arena, CrowdAndSeating, FieldMesh, LedWalls, ShowRig, StageBodyReal, WallSurfaceMaterial } from './ShowScene';
 import type { KulissenDaten } from './kulissenDaten';
@@ -38,6 +38,49 @@ function WallMaterial({ art, lengthM, heightM, color, show }: {
   return show
     ? <meshStandardMaterial color={color ?? '#3a3d42'} roughness={0.9} />
     : <meshStandardMaterial color={color ?? '#6b7280'} opacity={0.6} transparent />;
+}
+
+function HardwareMetal() {
+  return <meshStandardMaterial color="#b8bec7" roughness={0.22} metalness={0.88} />;
+}
+
+/** Hardware is duplicated on both faces so it remains visible in room and camera views. */
+function DoorHardwareMeshes({ hardware, faceOffset }: { hardware: DoorHardware; faceOffset: number }) {
+  if (hardware === 'none') return null;
+  const faces = [-1, 1];
+  if (hardware === 'pull') {
+    return faces.map((face) => (
+      <group key={face} position={[0, 0.08, face * faceOffset]}>
+        <mesh><cylinderGeometry args={[0.018, 0.018, 0.42, 12]} /><HardwareMetal /></mesh>
+        {[-0.16, 0.16].map((height) => (
+          <mesh key={height} position={[0, height, -face * 0.045]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.014, 0.014, 0.09, 10]} /><HardwareMetal />
+          </mesh>
+        ))}
+      </group>
+    ));
+  }
+  if (hardware === 'panic') {
+    return faces.map((face) => (
+      <group key={face} position={[-0.18, 0, face * faceOffset]}>
+        <mesh><boxGeometry args={[0.48, 0.055, 0.035]} /><HardwareMetal /></mesh>
+        {[-0.2, 0.2].map((x) => (
+          <mesh key={x} position={[x, 0, -face * 0.035]}><boxGeometry args={[0.04, 0.09, 0.07]} /><HardwareMetal /></mesh>
+        ))}
+      </group>
+    ));
+  }
+  return faces.map((face) => (
+    <group key={face} position={[0, 0, face * faceOffset]}>
+      <mesh><boxGeometry args={[0.075, 0.16, 0.018]} /><HardwareMetal /></mesh>
+      <mesh position={[0, 0, -face * 0.035]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.018, 0.018, 0.08, 10]} /><HardwareMetal />
+      </mesh>
+      <mesh position={[-0.09, 0, -face * 0.07]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.018, 0.018, 0.2, 10]} /><HardwareMetal />
+      </mesh>
+    </group>
+  ));
 }
 
 export function Kulisse({ daten, show, tageslicht = false, simple, werte, audience, planungsBoden, einfacheBuehne, cameraView = false }: {
@@ -141,6 +184,21 @@ export function Kulisse({ daten, show, tageslicht = false, simple, werte, audien
                     : <meshStandardMaterial color={color} roughness={material === 'metal' ? 0.28 : material === 'wood' ? 0.82 : 0.65} metalness={material === 'metal' ? 0.72 : 0.03} />}
                 </mesh>
               ));
+            })}
+            {(w.openings ?? []).map((opening, openingIndex) => {
+              if (opening.kind !== 'door') return null;
+              const placement = doorHardwarePlacement(w, opening);
+              const hardware = resolvedDoorHardware(opening);
+              if (!placement || hardware === 'none') return null;
+              return (
+                <group
+                  key={`door-hardware-${opening.id ?? openingIndex}`}
+                  position={[placement.x, placement.height, placement.y]}
+                  rotation={[0, -placement.angle, 0]}
+                >
+                  <DoorHardwareMeshes hardware={hardware} faceOffset={Math.max(0.035, dicke * 0.2) + 0.025} />
+                </group>
+              );
             })}
           </group>
         );

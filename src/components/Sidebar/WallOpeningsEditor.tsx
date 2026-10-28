@@ -41,6 +41,7 @@ export default function WallOpeningsEditor({ wall, defaultHeightM, onChange }: P
       top,
       material: kind === 'window' ? 'glass' : 'solid',
       color: kind === 'door' ? '#6b4f3a' : undefined,
+      doorSwing: kind === 'door' ? 'left-in' : undefined,
     }]);
   };
 
@@ -87,6 +88,29 @@ export default function WallOpeningsEditor({ wall, defaultHeightM, onChange }: P
               <button type="button" aria-label={t('sidebar.openingRemove', 'Remove opening')} onClick={() => remove(index)} className="p-0.5 text-bc-muted hover:text-bc-red-text"><FiTrash2 size={11} /></button>
             </div>
             <div className="grid grid-cols-2 gap-1">
+              {kind === 'door' && (
+                <label className="text-[10px] text-bc-muted">
+                  {t('sidebar.openingSwing', 'Swing')}
+                  <select aria-label={t('sidebar.openingSwing', 'Swing')} className="w-full border border-bc-border bg-bc-dark px-1 py-0.5 text-bc-text-bright" value={opening.doorSwing ?? 'left-in'} onChange={(event) => replace(index, { doorSwing: event.target.value as VenueWallOpening['doorSwing'] })}>
+                    <option value="left-in">{t('sidebar.openingSwingLeftIn', 'Left hinge · inward')}</option>
+                    <option value="right-in">{t('sidebar.openingSwingRightIn', 'Right hinge · inward')}</option>
+                    <option value="left-out">{t('sidebar.openingSwingLeftOut', 'Left hinge · outward')}</option>
+                    <option value="right-out">{t('sidebar.openingSwingRightOut', 'Right hinge · outward')}</option>
+                  </select>
+                </label>
+              )}
+              {kind === 'door' && (
+                <label className="text-[10px] text-bc-muted">
+                  {t('sidebar.openingHardware', 'Hardware')}
+                  <select aria-label={t('sidebar.openingHardware', 'Hardware')} className="w-full border border-bc-border bg-bc-dark px-1 py-0.5 text-bc-text-bright" value={opening.doorHardware ?? 'auto'} onChange={(event) => replace(index, { doorHardware: event.target.value === 'auto' ? undefined : event.target.value as VenueWallOpening['doorHardware'] })}>
+                    <option value="auto">{t('sidebar.openingHardwareAuto', 'Automatic')}</option>
+                    <option value="lever">{t('sidebar.openingHardwareLever', 'Lever handle')}</option>
+                    <option value="pull">{t('sidebar.openingHardwarePull', 'Pull bars')}</option>
+                    <option value="panic">{t('sidebar.openingHardwarePanic', 'Panic bar')}</option>
+                    <option value="none">{t('sidebar.openingHardwareNone', 'None')}</option>
+                  </select>
+                </label>
+              )}
               <label className="text-[10px] text-bc-muted">
                 {format(t('sidebar.openingPosition', 'Position ({unit})'), { unit: lengthUnit(units) })}
                 <LengthInput aria-label={`${kind} position`} className="w-full border border-bc-border bg-bc-dark px-1 py-0.5 text-bc-text-bright" value={opening.offset} min={0} max={Math.max(0, pathLength - 0.05)} onChange={(offset) => replace(index, { offset })} />
