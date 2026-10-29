@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { VenueCamera } from '../types';
-import { cameraExportJobs, presetExportJobs, presetExportKey } from '../utils/exportBatch';
+import type { Shotlist, VenueCamera } from '../types';
+import { cameraExportJobs, presetExportJobs, presetExportKey, shotlistExportJobs } from '../utils/exportBatch';
 import { selectedPresetSheetLayout, containExportImage } from '../utils/presetExportSheet';
 import { planExportBounds } from '../utils/planExportBounds';
 import previewSource from '../components/Preview/Kamerablick.tsx?raw';
@@ -52,6 +52,42 @@ describe('selected preset export queue', () => {
     ]);
     expect(jobs.map((job) => job.displayLabel)).toEqual(['Preset #8 — Close', 'Preset #1 — Lectern']);
     expect(jobs[0].cameraOverride).toMatchObject({ pan: 20, tilt: -5, focalLength: 120, focusDistance: 9, x: 4, y: 5, z: 2 });
+  });
+});
+
+describe('shotlist-driven coverage export', () => {
+  const state = (pan: number, aperture: number) => ({
+    x: 2, y: 3, z: 4, pan, tilt: -9, focalLength: 40, aperture, focusDistance: 12, trackOffset: 0,
+  });
+  const list: Shotlist = {
+    id: 'show', name: 'Council', shots: [
+      { id: 's1', cameraId: 'b', name: 'Mayor Close-Up', state: state(44, 5.6), transition: 'fast', ptzPresetNumber: 2 },
+      { id: 's2', cameraId: 'a', name: 'Public Comment', state: state(20, 2.8), transition: 'off' },
+      { id: 's3', cameraId: 'b', name: 'Mayor Close-Up', state: state(60, 4), transition: 'slow', ptzPresetNumber: 2 },
+      { id: 'missing', cameraId: 'gone', name: 'Deleted Camera', state: state(0, 2.8), transition: 'fast' },
+    ],
+  };
+  it('exports in shotlist order, with unique sequence labels and exact shot titles', () => {
+    const cameras = [camera('a'), { ...camera('b'), pan: 0, aperture: 1.8 }];
+    const jobs = shotlistExportJobs(list, cameras, new Set(['s3', 's1', 's2']));
+    expect(jobs.map(job => [job.cam.id, job.titleOverride, job.variantLabel])).toEqual([
+      ['b', 'Mayor Close-Up', 'shot_01_Mayor Close-Up'],
+      ['a', 'Public Comment', 'shot_02_Public Comment'],
+      ['b', 'Mayor Close-Up', 'shot_03_Mayor Close-Up'],
+    ]);
+    expect(jobs.map(job => job.cameraOverride)).toEqual([
+      { ...state(44, 5.6), lockedPersonId: undefined },
+      { ...state(20, 2.8), lockedPersonId: undefined },
+      { ...state(60, 4), lockedPersonId: undefined },
+    ]);
+  });
+  it('does not depend on PTZ preset records, current camera state or selection order', () => {
+    const cameras = [{ ...camera('b'), pan: 999, aperture: 1.2, presets: [] }];
+    const jobs = shotlistExportJobs(list, cameras, new Set(['missing', 's3', 's1']));
+    expect(jobs.map(j => j.variantLabel)).toEqual(['shot_01_Mayor Close-Up', 'shot_03_Mayor Close-Up']);
+    expect(jobs[0].cameraOverride).toMatchObject({ pan: 44, aperture: 5.6, z: 4 });
+    expect(cameras[0].pan).toBe(999);
+    expect(list.shots[0].name).toBe('Mayor Close-Up');
   });
 });
 
