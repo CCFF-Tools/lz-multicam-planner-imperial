@@ -50,7 +50,7 @@ export default function UpdateShotSettings({ cameraId }: { cameraId: string }) {
             <input type="checkbox" checked={!excluded.has(key)} onChange={e => setExcluded(prev => {
               const next = new Set(prev); if (e.target.checked) next.delete(key); else next.add(key); return next;
             })} />
-            <span className="min-w-0 flex-1">{t(`preview.shotField.${key}`, LABELS[key])}</span>
+            <span className="min-w-0 flex-1">{LABELS[key]}</span>
             <span className="text-bc-muted tabular-nums">{describe(key, shot.state[key])}</span>
             <span className="text-bc-muted">→</span>
             <span className="tabular-nums">{describe(key, key === 'trackOffset' ? (camera.trackOffset ?? 0) : camera[key])}</span>
