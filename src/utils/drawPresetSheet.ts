@@ -21,7 +21,7 @@ export function sheetTextLines(ctx: Pick<CanvasRenderingContext2D, 'measureText'
 }
 
 export function drawPresetSheet(input: {
-  camera: VenueCamera; cameraNumber: number; presetLabel: string; venue: Venue; projectVersion: number;
+  camera: VenueCamera; cameraNumber: number; presetLabel: string; titleOverride?: string; venue: Venue; projectVersion: number;
   timestamp: string; units: Units; frame: HTMLCanvasElement; plan: HTMLCanvasElement;
   data: ReturnType<typeof presetSheetData>;
 }): HTMLCanvasElement {
@@ -64,7 +64,7 @@ export function drawPresetSheet(input: {
   const number = String(input.cameraNumber).padStart(2, '0');
   ctx.fillStyle = '#223b55'; ctx.beginPath(); ctx.roundRect(24, 24, 80, 76, 12); ctx.fill();
   text(number, 64, 40, 70, 46, COLORS.text, 'center');
-  text(input.camera.label, 124, 25, 1440, 40);
+  text(input.titleOverride ?? input.camera.label, 124, 25, 1440, 40);
   text(`Camera ${number} · ${input.presetLabel} · ${input.camera.focalLength.toFixed(1)} mm · ${input.data.cameraModel}`, 124, 76, 1440, 21);
   text(`${input.venue.name} · Project v${input.projectVersion}`, 2536, 30, 890, 22, COLORS.text, 'right');
   text(input.timestamp, 2536, 69, 890, 20, COLORS.muted, 'right');
