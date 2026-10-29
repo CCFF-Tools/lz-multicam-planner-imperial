@@ -1,10 +1,12 @@
-import type { Lens, VenueCamera } from '../types';
+import type { Lens, Shotlist, VenueCamera } from '../types';
 
 export interface CameraExportJob {
   cam: VenueCamera;
   focalOverride?: number;
   variantLabel?: string;
   displayLabel?: string;
+  /** Optional main heading for coverage sheets generated from named shots. */
+  titleOverride?: string;
   cameraOverride?: Partial<VenueCamera>;
 }
 
@@ -63,6 +65,31 @@ export function presetExportJobs(cameras: VenueCamera[], selected: ReadonlySet<s
     }
   }
   return jobs;
+}
+
+/**
+ * Builds coverage-sheet jobs directly from the saved shots in one shotlist.
+ * The snapshot is authoritative, not a linked PTZ preset or the camera's
+ * current view. Shotlist order determines output order and sequence numbers.
+ * Shots whose cameras no longer exist cannot be rendered.
+ */
+export function shotlistExportJobs(
+  list: Shotlist, cameras: VenueCamera[], selectedShotIds: ReadonlySet<string>,
+): CameraExportJob[] {
+  const byId = new Map(cameras.map(cam => [cam.id, cam]));
+  return list.shots.flatMap((shot, index) => {
+    if (!selectedShotIds.has(shot.id)) return [];
+    const cam = byId.get(shot.cameraId);
+    if (!cam) return [];
+    const sequence = String(index + 1).padStart(2, '0');
+    return [{
+      cam,
+      titleOverride: shot.name,
+      displayLabel: `Shot ${sequence} · ${cam.label}`,
+      variantLabel: `shot_${sequence}_${shot.name}`,
+      cameraOverride: { ...shot.state, lockedPersonId: undefined },
+    }];
+  });
 }
 
 /** Pure queue orchestration: every output receives its own recalled camera value. */
