@@ -24,15 +24,17 @@ import { WEBGL_POWER_PREFERENCE } from '../../utils/gpuInfo';
 import { useUnits } from '../../store/units';
 import { formatDimensions, formatLengthWithUnit } from '../../utils/units';
 import { createZip } from '../../utils/zip';
-import { cameraExportJobs, presetExportJobs, presetExportKey } from '../../utils/exportBatch';
+import { cameraExportJobs, presetExportJobs, presetExportKey, shotlistExportJobs } from '../../utils/exportBatch';
 import { withTransientProjectState } from '../../store/transientProjectState';
 import { useBedarf3D } from '../Render3D/kameraBild3d';
 
-export type ExportMode = 'current' | 'all' | 'widetele' | 'all-widetele' | 'selected-presets';
+export type ExportMode = 'current' | 'all' | 'widetele' | 'all-widetele' | 'selected-presets' | 'shotlist-coverage';
 
 interface ExportDetail {
   mode?: ExportMode;
   presetKeys?: string[];
+  shotlistId?: string;
+  shotIds?: string[];
 }
 
 interface ExportArtifact {
@@ -636,10 +638,10 @@ export default function ExportPanel() {
     return blob ? { filename, blob } satisfies ExportArtifact : null;
   }, [cameras, venue, persons, projectVersion, capture2DCanvas, capture3DCanvas, capturePreviewCanvas, waitForPaint, t, length, units]);
 
-  const generateExport = useCallback(async (mode: ExportMode = 'current', presetKeys: ReadonlySet<string> = new Set()) => {
+  const generateExport = useCallback(async (mode: ExportMode = 'current', presetKeys: ReadonlySet<string> = new Set(), shotRequest?: { shotlistId: string; shotIds: readonly string[] }) => {
     const state = useStore.getState();
     const currentCam = state.cameras.find((c) => c.id === state.selectedCameraId);
-    const targetCams = (mode === 'all' || mode === 'all-widetele' || mode === 'selected-presets')
+    const targetCams = (mode === 'all' || mode === 'all-widetele' || mode === 'selected-presets' || mode === 'shotlist-coverage')
       ? state.cameras
       : currentCam ? [currentCam] : [];
 
@@ -650,14 +652,19 @@ export default function ExportPanel() {
 
     setExporting(true);
 
-    if (mode === 'selected-presets') {
+    if (mode === 'selected-presets' || mode === 'shotlist-coverage') {
       try {
+        const selectedList = shotRequest ? state.shotlists.find(list => list.id === shotRequest.shotlistId) : undefined;
+        const jobs = mode === 'shotlist-coverage'
+          ? selectedList ? shotlistExportJobs(selectedList, targetCams, new Set(shotRequest?.shotIds ?? [])) : []
+          : presetExportJobs(targetCams, presetKeys);
+        if (!jobs.length) throw new Error('No eligible shots or presets selected.');
         const { exportSelectedPresets } = await import('./selectedPresetExport');
-        const result = await exportSelectedPresets(presetExportJobs(targetCams, presetKeys), units,
+        const result = await exportSelectedPresets(jobs, units,
           (current, total) => setExportProgress({ current, total }));
         if (result.artifacts.length) {
           const archive = await createZip(result.artifacts.map(a => ({ name: a.filename, data: a.blob })));
-          downloadBlob(archive, `${safeFilePart(state.venue.name)}_camera_exports_v${state.projectVersion}.zip`);
+          downloadBlob(archive, `${safeFilePart(state.venue.name)}_${mode === 'shotlist-coverage' ? 'shotlist_coverage' : 'camera_exports'}_v${state.projectVersion}.zip`);
         }
         if (result.failures.length) alert(`Some preset exports failed:\n${result.failures.join('\n')}`);
       } catch (error) {
@@ -754,7 +761,9 @@ export default function ExportPanel() {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<ExportDetail>).detail;
       const mode = detail?.mode ?? 'current';
-      if (mode === 'selected-presets') {
+      if (mode === 'shotlist-coverage') {
+        if (detail?.shotlistId && detail.shotIds?.length) void generateExport(mode, new Set(), { shotlistId: detail.shotlistId, shotIds: detail.shotIds });
+      } else if (mode === 'selected-presets') {
         if (detail?.presetKeys) {
           void generateExport('selected-presets', new Set(detail.presetKeys));
           return;
