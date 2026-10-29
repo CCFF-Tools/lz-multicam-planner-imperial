@@ -206,7 +206,7 @@ interface AppState {
   /** Returns the assigned preset number, or undefined when the camera is missing. */
   savePresetFromCamera: (id: string, name: string, segment?: string) => number | undefined;
   /** Felder eines Presets aendern (Name, Segment, Nummer). */
-  updatePreset: (id: string, number: number, patch: Partial<Pick<PtzPreset, 'name' | 'segment' | 'number'>>) => void;
+  updatePreset: (id: string, number: number, patch: Partial<PtzPreset>) => void;
   /** Ein Preset entfernen. */
   removePreset: (id: string, number: number) => void;
   moveCamera: (id: string, x: number, y: number) => void;
@@ -867,14 +867,36 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   updatePreset: (id, number, patch) =>
-    set((s) => ({
-      cameras: s.cameras.map((c) =>
-        c.id === id
-          ? { ...c, presets: (c.presets ?? []).map((p) => (p.number === number ? { ...p, ...patch } : p)) }
-          : c,
-      ),
-      projectVersion: s.projectVersion + 1,
-    })),
+    set((s) => {
+      const camera = s.cameras.find(c => c.id === id);
+      const existing = camera?.presets?.find(p => p.number === number);
+      if (!existing) return {};
+      const newNumber = patch.number ?? number;
+      if (!Number.isSafeInteger(newNumber) || newNumber <= 0 ||
+          camera?.presets?.some(p => p.number === newNumber && p !== existing)) return {};
+      const poseChanged = ['pan', 'tilt', 'focalLength', 'focusDistance', 'savedAtPosition']
+        .some(key => patch[key as keyof PtzPreset] !== undefined && patch[key as keyof PtzPreset] !== existing[key as keyof PtzPreset]);
+      const next = { ...existing, ...patch };
+      return {
+        cameras: s.cameras.map(c => c.id === id
+          ? { ...c, presets: (c.presets ?? []).map(p => p.number === number ? next : p) } : c),
+        shotlists: s.shotlists.map(list => ({ ...list, shots: list.shots.map(shot => {
+          if (shot.cameraId !== id || shot.ptzPresetNumber !== number) return shot;
+          return {
+            ...shot,
+            ptzPresetNumber: newNumber,
+            name: patch.name !== undefined && shot.name === existing.name ? patch.name : shot.name,
+            ...(poseChanged ? {
+              state: { ...shot.state, pan: next.pan, tilt: next.tilt,
+                focalLength: next.focalLength, focusDistance: next.focusDistance,
+                x: next.savedAtPosition.x, y: next.savedAtPosition.y, z: next.savedAtPosition.z },
+              thumbnail: undefined,
+            } : {}),
+          };
+        }) })),
+        projectVersion: s.projectVersion + 1,
+      };
+    }),
 
   removePreset: (id, number) =>
     set((s) => ({
