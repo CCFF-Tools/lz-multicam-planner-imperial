@@ -3,6 +3,15 @@
 // Mit B-61 entstanden. Der deutsche Text ist Zeichen für Zeichen der, der
 // vorher fest im JSX stand — mit einer bewussten Ausnahme, die unten steht.
 export const shotlist: Record<string, string> = {
+  'shotlist.exportPresets': 'Ausgewählte PTZ-Presets als Abdeckungsblätter exportieren',
+  'shotlist.exportPresetsCount': 'Presets ({count})',
+  'shotlist.selectPresetAll': 'Alle Presets auswählen',
+  'shotlist.selectPresetNone': 'Auswahl löschen',
+  'shotlist.presetSelectionHelp': 'Verknüpfte PTZ-Presets für den Export auswählen',
+  'shotlist.selectPreset': 'Preset #{number} zum Export auswählen',
+  'shotlist.linkedPreset': 'PTZ-Preset #{number}',
+  'shotlist.editPreset': 'Preset bearbeiten',
+  'shotlist.missingPreset': 'Verknüpftes PTZ-Preset fehlt; Export nicht möglich',
   'shotlist.none': '— keine Shotlist —',
   'shotlist.pick': 'Shotlist',
   'shotlist.new': 'Neue Shotlist',
