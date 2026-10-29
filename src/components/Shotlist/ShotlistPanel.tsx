@@ -33,7 +33,7 @@ import { motionProfileHint, motionProfileLabel, mountTypeLabel } from '../../i18
 import { stampForStand } from '../../utils/documentStamp';
 import type { Shot } from '../../types';
 import { useUnits } from '../../store/units';
-import { presetExportKey } from '../../utils/exportBatch';
+
 import { openPtzPresetEditor } from '../Sidebar/presetEditorEvent';
 
 /**
@@ -83,10 +83,7 @@ export default function ShotlistPanel() {
     const preset = camera?.presets?.find(p => p.number === shot.ptzPresetNumber);
     return camera && preset ? [[shot.id, { camera, preset }] as const] : [];
   })), [shots, cameras]);
-  const exportKeys = [...new Set([...exportShotIds].flatMap(id => {
-    const linked = linkedPresets.get(id);
-    return linked ? [presetExportKey(linked.camera.id, linked.preset.number)] : [];
-  }))];
+  const selectedShotIds = shots.filter(shot => exportShotIds.has(shot.id) && cameras.some(cam => cam.id === shot.cameraId)).map(shot => shot.id);
 
   // Abbruch-Handle der laufenden Fahrt. Ein neuer Sprung bricht die alte Fahrt
   // ab, damit sich zwei Interpolationen nicht gegenseitig ueberschreiben.
@@ -335,10 +332,10 @@ export default function ShotlistPanel() {
 
         <div className="w-px h-4 bg-bc-border" />
 
-        <button className={btn} disabled={exportKeys.length === 0 || busy} title={t('shotlist.exportPresets', 'Export selected PTZ presets as coverage sheets')} onClick={() => {
-          window.dispatchEvent(new CustomEvent('multicam-export', { detail: { mode: 'selected-presets', presetKeys: exportKeys } }));
+        <button className={btn} disabled={!list || selectedShotIds.length === 0 || busy} title={t('shotlist.exportCoverage', 'Export selected shots as camera coverage sheets')} onClick={() => {
+          if (list) window.dispatchEvent(new CustomEvent('multicam-export', { detail: { mode: 'shotlist-coverage', shotlistId: list.id, shotIds: selectedShotIds } }));
         }}>
-          <FiDownload size={13} /> {format(t('shotlist.exportPresetsCount', 'Presets ({count})'), { count: exportKeys.length })}
+          <FiDownload size={13} /> {format(t('shotlist.exportShotsCount', 'Coverage PNGs ({count})'), { count: selectedShotIds.length })}
         </button>
         <button className={btn} onClick={doExportPng} disabled={!list || shots.length === 0 || busy} title={t('shotlist.exportPng', 'Storyboard as PNG')}>
           <FiDownload size={13} />
@@ -361,10 +358,10 @@ export default function ShotlistPanel() {
         </div>
       )}
 
-      {linkedPresets.size > 0 && <div className="flex items-center gap-2 px-2 py-1 border-b border-bc-border text-[11px]">
-        <button className={btn} onClick={() => setExportShotIds(new Set(linkedPresets.keys()))}>{t('shotlist.selectPresetAll', 'Select all presets')}</button>
-        <button className={btn} onClick={() => setExportShotIds(new Set())}>{t('shotlist.selectPresetNone', 'Clear selection')}</button>
-        <span className="text-bc-dim">{t('shotlist.presetSelectionHelp', 'Select linked PTZ presets for coverage-sheet export')}</span>
+      {shots.length > 0 && <div className="flex items-center gap-2 px-2 py-1 border-b border-bc-border text-[11px]">
+        <button className={btn} onClick={() => setExportShotIds(new Set(shots.filter(shot => cameras.some(cam => cam.id === shot.cameraId)).map(shot => shot.id)))}>{t('shotlist.selectShotAll', 'Select all shots')}</button>
+        <button className={btn} onClick={() => setExportShotIds(new Set())}>{t('shotlist.selectShotNone', 'Clear selection')}</button>
+        <span className="text-bc-dim">{t('shotlist.shotSelectionHelp', 'Export the saved settings and titles of selected shots')}</span>
       </div>}
       {/* ── Shot-Streifen ── */}
       <div className="flex-1 overflow-y-auto p-2 space-y-2">
@@ -446,17 +443,19 @@ export default function ShotlistPanel() {
                     title={t('shotlist.renameShot', 'Name the shot')}
                   />
                   <div className="text-[10px] text-bc-muted px-1 truncate">{shotOpticsLabel(shot, units)}</div>
-                  {linked ? <div className="flex items-center gap-2 px-1 text-[11px] text-bc-muted">
+                  <div className="flex items-center gap-2 px-1 text-[11px] text-bc-muted">
                     <label className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" checked={exportShotIds.has(shot.id)} onChange={e => setExportShotIds(old => {
+                      <input type="checkbox" disabled={camGone} checked={!camGone && exportShotIds.has(shot.id)} onChange={e => setExportShotIds(old => {
                         const next = new Set(old); if (e.target.checked) next.add(shot.id); else next.delete(shot.id); return next;
-                      })} aria-label={format(t('shotlist.selectPreset', 'Select preset #{number} for export'), { number: linked.preset.number })} />
-                      {format(t('shotlist.linkedPreset', 'PTZ preset #{number}'), { number: linked.preset.number })}
+                      })} aria-label={format(t('shotlist.selectShot', 'Select shot {name} for coverage export'), { name: shot.name })} />
+                      {t('shotlist.coverageSelection', 'Coverage PNG')}
                     </label>
-                    <button type="button" className="flex items-center gap-1 text-bc-accent hover:text-bc-text-bright" onClick={e => {
+                    {linked && <span>{format(t('shotlist.linkedPreset', 'PTZ preset #{number}'), { number: linked.preset.number })}</span>}
+                    {linked && <button type="button" className="flex items-center gap-1 text-bc-accent hover:text-bc-text-bright" onClick={e => {
                       e.stopPropagation(); openPtzPresetEditor(shot.cameraId, linked.preset.number);
-                    }}><FiEdit2 size={11} />{t('shotlist.editPreset', 'Edit preset')}</button>
-                  </div> : shot.ptzPresetNumber !== undefined ? <div className="text-[10px] text-bc-red-text px-1">{t('shotlist.missingPreset', 'Linked PTZ preset missing; unavailable for export')}</div> : null}
+                    }}><FiEdit2 size={11} />{t('shotlist.editPreset', 'Edit preset')}</button>}
+                  </div>
+                  {!linked && shot.ptzPresetNumber !== undefined && <div className="text-[10px] text-bc-red-text px-1">{t('shotlist.missingPreset', 'Linked PTZ preset missing; shot export uses saved shot settings')}</div>}
                   <div className="flex items-center gap-1 px-1">
                     <button
                       onClick={(e) => {
