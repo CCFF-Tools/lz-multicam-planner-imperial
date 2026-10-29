@@ -34,7 +34,7 @@ import { stampForStand } from '../../utils/documentStamp';
 import type { Shot } from '../../types';
 import { useUnits } from '../../store/units';
 import { presetExportKey } from '../../utils/exportBatch';
-import { openPtzPresetEditor } from '../Sidebar/PresetEditorDialog';
+import { openPtzPresetEditor } from '../Sidebar/presetEditorEvent';
 
 /**
  * Shotlist-/Storyboard-Panel (#62 Punkt 5).
