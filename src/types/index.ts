@@ -740,6 +740,10 @@ export interface PtzPreset {
   focalLength: number;
   /** Fokusentfernung in Metern zum Zeitpunkt des Speicherns. */
   focusDistance: number;
+  /** Optional for older projects; stored to make shot-specific aperture exports deterministic. */
+  aperture?: number;
+  /** Optional rig offset (metres), for accurate coverage exports of tracked shots. */
+  trackOffset?: number;
   /** ISO-Zeitstempel des Speicherns. */
   savedAt: string;
   /**
