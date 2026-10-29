@@ -6,6 +6,7 @@ import { CAMERAS, getCameraById, getAdapterInfo, getEffectiveSensor, getCoverage
 import { LENSES, getLensById, getCompatibleLenses, pickInitialMountAndLens, integratedLensesFor, lensFitsCamera, GENERIC_INTEGRATED_LENS } from '../../data/lenses';
 import { computeFov, computeDof } from '../../utils/fov';
 import { checkPresets, presetRows, type PresetFinding } from '../../utils/ptzPresets';
+import { openPtzPresetEditor } from './presetEditorEvent';
 import { conflictsForCamera, conflictText } from '../../utils/sightline';
 import { FRAMING_LABEL, FRAMINGS, reachReport, verdictShort } from '../../utils/lensReach';
 import { PAINT_FINDING_LABEL, checkPaint } from '../../utils/paintState';
@@ -1872,6 +1873,7 @@ function CameraCard({
                           <td className="py-1 pr-1 text-bc-muted">{r.segment || '—'}</td>
                           <td className="py-1 pr-1 text-bc-dim">{r.stand}</td>
                           <td className="py-1 text-right">
+                            <button type="button" className="mr-2 text-bc-accent hover:text-bc-text-bright" onClick={() => openPtzPresetEditor(cam.id, Number(r.nummer))} title={t('sidebar.cam.editPresetTitle', 'Edit PTZ preset')}>{t('sidebar.cam.presetEdit', 'Edit')}</button>
                             <button
                               type="button"
                               aria-label={format(t('sidebar.cam.presetRemove', 'Remove preset {n}'), { n: r.nummer })}

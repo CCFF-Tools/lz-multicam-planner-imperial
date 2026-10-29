@@ -16,6 +16,7 @@ import ShotlistPanel from './components/Shotlist/ShotlistPanel';
 import RigControlPanel from './components/RigControl/RigControlPanel';
 import TemplateSelector from './components/Templates/TemplateSelector';
 import ExportPanel from './components/Export/ExportPanel';
+import PresetEditorDialog from './components/Sidebar/PresetEditorDialog';
 import ErrorBoundary from './components/ErrorBoundary';
 import { getExportRegistry } from './store/exportRegistry';
 import { loadJSON, saveJSON } from './utils/storage';
@@ -725,6 +726,7 @@ export default function App() {
       <StatusBar />
 
       <ExportPanel />
+      <PresetEditorDialog />
       <FirstSteps activeTabId={layoutMode === 'focus' ? focusTabId : 'tab-preview'} onSelectTab={handleSelectTab} />
       <CommandPalette commands={commands} />
       {braucht3D && <Suspense fallback={null}><KameraBildHost /></Suspense>}
