@@ -4,13 +4,7 @@ import { useUnits } from '../../store/units';
 import { formatLength, parseLength } from '../../utils/units';
 import { useTranslation, format } from '../../i18n';
 import type { PtzPreset } from '../../types';
-
-const EDIT_EVENT = 'multicam-edit-ptz-preset';
-
-/** Shared entry point for camera sidebar and shotlist; the editor mounts once in App. */
-export function openPtzPresetEditor(cameraId: string, presetNumber: number): void {
-  window.dispatchEvent(new CustomEvent(EDIT_EVENT, { detail: { cameraId, presetNumber } }));
-}
+import { EDIT_PTZ_PRESET_EVENT } from './presetEditorEvent';
 
 type Target = { cameraId: string; presetNumber: number };
 type Draft = {
@@ -46,8 +40,8 @@ export default function PresetEditorDialog() {
         useCurrentPosition: false,
       });
     };
-    window.addEventListener(EDIT_EVENT, open);
-    return () => window.removeEventListener(EDIT_EVENT, open);
+    window.addEventListener(EDIT_PTZ_PRESET_EVENT, open);
+    return () => window.removeEventListener(EDIT_PTZ_PRESET_EVENT, open);
   }, [units]);
 
   const camera = cameras.find(c => c.id === target?.cameraId);
