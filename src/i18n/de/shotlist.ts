@@ -3,6 +3,13 @@
 // Mit B-61 entstanden. Der deutsche Text ist Zeichen für Zeichen der, der
 // vorher fest im JSX stand — mit einer bewussten Ausnahme, die unten steht.
 export const shotlist: Record<string, string> = {
+  'shotlist.exportCoverage': 'Ausgewählte Shots als Kamera-Abdeckungsblätter exportieren',
+  'shotlist.exportShotsCount': 'Abdeckungs-PNGs ({count})',
+  'shotlist.selectShotAll': 'Alle Shots auswählen',
+  'shotlist.selectShotNone': 'Auswahl löschen',
+  'shotlist.shotSelectionHelp': 'Gespeicherte Einstellungen und Titel der ausgewählten Shots exportieren',
+  'shotlist.selectShot': 'Shot {name} für den Abdeckungsexport auswählen',
+  'shotlist.coverageSelection': 'Abdeckungs-PNG',
   'shotlist.exportPresets': 'Ausgewählte PTZ-Presets als Abdeckungsblätter exportieren',
   'shotlist.exportPresetsCount': 'Presets ({count})',
   'shotlist.selectPresetAll': 'Alle Presets auswählen',
@@ -11,7 +18,7 @@ export const shotlist: Record<string, string> = {
   'shotlist.selectPreset': 'Preset #{number} zum Export auswählen',
   'shotlist.linkedPreset': 'PTZ-Preset #{number}',
   'shotlist.editPreset': 'Preset bearbeiten',
-  'shotlist.missingPreset': 'Verknüpftes PTZ-Preset fehlt; Export nicht möglich',
+  'shotlist.missingPreset': 'Verknüpftes PTZ-Preset fehlt; Export nutzt die gespeicherten Shot-Einstellungen',
   'shotlist.none': '— keine Shotlist —',
   'shotlist.pick': 'Shotlist',
   'shotlist.new': 'Neue Shotlist',
