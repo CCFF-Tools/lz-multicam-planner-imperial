@@ -12,9 +12,10 @@ import { formatDimensions, lengthUnit } from '../../utils/units';
 import { FiEdit3, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { useStore } from '../../store/useStore';
 import { useTranslation, format } from '../../i18n';
-import { RAUM_BOEDEN, RAUM_WAENDE, sitzblockNormal, sitzblockPlaetze, videowandNormal, type RaumBoden, type RaumWand, type VenueSeatingBlock } from '../../avplan/floorplan';
+import { RAUM_BOEDEN, RAUM_WAENDE, sitzblockNormal, videowandNormal, type RaumBoden, type RaumWand, type VenueSeatingBlock } from '../../avplan/floorplan';
 import type { CeilingMaterial, CeilingZone } from '../../types';
 import { normaliseCeilingZone } from '../../utils/ceiling';
+import { audienceBlockCounts } from '../../utils/audienceBlockLabel';
 
 const zahl = (v: string, fallback: number) => {
   const n = parseFloat(v);
@@ -204,6 +205,7 @@ export default function RoomPanel() {
       <div className="pt-1 text-[13px] font-semibold text-bc-text-bright">{t('room.audience', 'Audience')}</div>
       {blocks.map((roh) => {
         const b = sitzblockNormal(roh);
+        const counts = audienceBlockCounts(b);
         return (
           <div key={b.id} className="bg-bc-dark p-2 border border-bc-border space-y-1">
             <div className="flex items-center gap-2">
@@ -220,7 +222,12 @@ export default function RoomPanel() {
               </button>
             </div>
             <div className="text-[11px] text-bc-muted tabular-nums">
-              {format(t('room.summary', '{dims} · about {n} people'), { dims: formatDimensions(b.width, b.rows * b.rowSpacingM, units), n: Math.round(sitzblockPlaetze(b) * b.occupancy) })}
+              {format(t('room.summaryCapacity', '{dims} · capacity {capacity} · occupied {occupied} ({percent}%)'), {
+                dims: formatDimensions(b.width, b.rows * b.rowSpacingM, units),
+                capacity: counts.capacity,
+                occupied: counts.occupied,
+                percent: counts.percent,
+              })}
             </div>
             <details>
               <summary className="cursor-pointer text-[11px] text-bc-dim hover:text-bc-text">{t('room.details', 'Fine-tune')}</summary>
