@@ -169,6 +169,8 @@ describe('ein Preset entsteht aus der aktuellen Stellung', () => {
       tilt: -7,
       focalLength: 55,
       focusDistance: 12,
+      aperture: cam.aperture,
+      trackOffset: cam.trackOffset ?? 0,
       savedAt: zeit,
       savedAtPosition: { x: 10, y: 5, z: 2 },
     });
