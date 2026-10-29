@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { VenueCamera, Venue, ViewTab, EditMode, EditGroup, ReferencePerson, BackgroundPlan, Stage, ProjectFile, VenueTemplate, StageObjectType, Lens, Wall, Camera, Shot, Shotlist, RigTake, PtzPreset } from '../types';
 import { EDIT_GROUPS } from '../types';
 import { presetFromCamera, nextPresetNumber } from '../utils/ptzPresets';
+import { shotSettingChanges, selectedShotState, selectedPresetState, type ShotSettingField } from '../utils/shotSettings';
 import { CAMERAS, CAMERA_COLORS } from '../data/cameras';
 import { LENSES, pickInitialMountAndLens } from '../data/lenses';
 import { TEMPLATES } from '../data/templates';
@@ -306,6 +307,8 @@ interface AppState {
   /** Haengt einen Shot ans Ende der Liste und liefert dessen id. */
   addShot: (shotlistId: string, shot: Omit<Shot, 'id'>) => string;
   updateShot: (shotlistId: string, shotId: string, updates: Partial<Omit<Shot, 'id'>>) => void;
+  /** Update only the explicitly selected settings of an existing shot from its live camera. */
+  updateShotFromCamera: (shotlistId: string, shotId: string, fields: readonly ShotSettingField[]) => boolean;
   removeShot: (shotlistId: string, shotId: string) => void;
   /** Verschiebt einen Shot per Index (Drag-Reihenfolge im Panel). */
   moveShot: (shotlistId: string, from: number, to: number) => void;
@@ -874,7 +877,7 @@ export const useStore = create<AppState>((set, get) => ({
       const newNumber = patch.number ?? number;
       if (!Number.isSafeInteger(newNumber) || newNumber <= 0 ||
           camera?.presets?.some(p => p.number === newNumber && p !== existing)) return {};
-      const poseChanged = ['pan', 'tilt', 'focalLength', 'focusDistance', 'savedAtPosition']
+      const poseChanged = ['pan', 'tilt', 'focalLength', 'focusDistance', 'aperture', 'trackOffset', 'savedAtPosition']
         .some(key => patch[key as keyof PtzPreset] !== undefined && patch[key as keyof PtzPreset] !== existing[key as keyof PtzPreset]);
       const next = { ...existing, ...patch };
       return {
@@ -889,6 +892,7 @@ export const useStore = create<AppState>((set, get) => ({
             ...(poseChanged ? {
               state: { ...shot.state, pan: next.pan, tilt: next.tilt,
                 focalLength: next.focalLength, focusDistance: next.focusDistance,
+                aperture: next.aperture ?? shot.state.aperture, trackOffset: next.trackOffset ?? shot.state.trackOffset,
                 x: next.savedAtPosition.x, y: next.savedAtPosition.y, z: next.savedAtPosition.z },
               thumbnail: undefined,
             } : {}),
@@ -1029,6 +1033,51 @@ export const useStore = create<AppState>((set, get) => ({
       );
       return { shotlists, projectVersion: s.projectVersion + 1 };
     }),
+
+  updateShotFromCamera: (shotlistId, shotId, requested) => {
+    let updated = false;
+    set((s) => {
+      const list = s.shotlists.find(l => l.id === shotlistId);
+      const shot = list?.shots.find(item => item.id === shotId);
+      const cam = s.cameras.find(c => c.id === shot?.cameraId);
+      if (!shot || !cam) return {};
+      const changed = new Set(shotSettingChanges(shot.state, cam));
+      const fields = [...new Set(requested)].filter(key => changed.has(key));
+      if (!fields.length) return {};
+      const savedPreset = shot.ptzPresetNumber === undefined
+        ? undefined : cam.presets?.find(p => p.number === shot.ptzPresetNumber);
+      // Never create an inconsistent shot/preset pair when a reference is broken.
+      if (shot.ptzPresetNumber !== undefined && !savedPreset) return {};
+      const nextState = selectedShotState(shot.state, cam, fields);
+      const nextPreset = savedPreset
+        ? selectedPresetState(savedPreset, nextState, fields, new Date().toISOString())
+        : undefined;
+      updated = true;
+      return {
+        cameras: nextPreset
+          ? s.cameras.map(c => c.id === cam.id
+              ? { ...c, presets: c.presets?.map(p => p.number === savedPreset?.number ? nextPreset : p) }
+              : c)
+          : s.cameras,
+        shotlists: s.shotlists.map(l => ({
+          ...l, shots: l.shots.map(item => {
+            if (l.id === shotlistId && item.id === shotId) {
+              return { ...item, state: nextState, thumbnail: undefined };
+            }
+            // Multiple shots may reference the same PTZ number. Keep their
+            // selected fields aligned without rewriting unrelated shot metadata.
+            if (nextPreset && item.cameraId === cam.id && item.ptzPresetNumber === savedPreset?.number) {
+              return { ...item, state: selectedShotState(item.state, cam, fields), thumbnail: undefined };
+            }
+            return item;
+          }),
+        })),
+        currentShotId: shotId,
+        projectVersion: s.projectVersion + 1,
+      };
+    });
+    return updated;
+  },
 
   removeShot: (shotlistId, shotId) =>
     set((s) => {
