@@ -34,11 +34,11 @@ export default function UpdateShotSettings({ cameraId }: { cameraId: string }) {
   };
   return (
     <div className="relative">
-      <button type="button" className="bc-btn-soft text-xs flex items-center gap-1"
+      <button type="button" className="bc-btn-soft flex shrink-0 items-center gap-1 whitespace-nowrap text-xs"
         aria-expanded={open}
         title={t('preview.updateShotHint', 'Update an existing shot with selected current camera settings')}
         onClick={() => { setExcluded(new Set()); setOpen(v => !v); }}>
-        <FiEdit2 size={14} /> {t('preview.updateShot', 'Update shot settings')}{changes.length ? ` (${changes.length})` : ''}
+        <FiEdit2 size={14} /> {t('preview.updateShot', 'Update shot')}{changes.length ? ` (${changes.length})` : ''}
       </button>
       {open && <div className="absolute right-0 bottom-full mb-2 z-50 w-[min(360px,85vw)] max-h-[60vh] overflow-y-auto rounded-bc-m border border-bc-border bg-bc-panel p-3 shadow-bc-1 text-bc-text-bright">
         <div className="text-sm font-semibold">{shot.name}</div>
