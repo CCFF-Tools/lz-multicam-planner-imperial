@@ -29,7 +29,7 @@ import PlanVisibilityBar from './PlanVisibilityBar';
 import { DEFAULT_PLAN_VISIBILITY, type PlanVisibilityKey } from './planVisibility';
 import RaumOverlay, { type RaumAuswahl } from './RaumOverlay';
 import { defaultWallControlPoint, wallPathPoints, wallPoint } from '../../utils/wallPath';
-import { planExportBounds } from '../../utils/planExportBounds';
+import { completePlanExportBounds, planExportBounds } from '../../utils/planExportBounds';
 import { ceilingZoneId, DEFAULT_CEILING_HEIGHT_M, DEFAULT_CEILING_MATERIAL } from '../../utils/ceiling';
 
 // Shared style for context-menu items (issue #38).
@@ -92,8 +92,15 @@ const PALETTE = {
   },
 } as const;
 
-export default function Venue2D() {
-  const { t } = useTranslation();
+interface Venue2DProps {
+  /** Detached export instance; never registers over the interactive plan. */
+  exportCamera?: VenueCamera;
+  onExportReady?: (capture: () => HTMLCanvasElement | null) => void;
+}
+
+export default function Venue2D({ exportCamera, onExportReady }: Venue2DProps = {}) {
+  const { t: translate } = useTranslation();
+  const t = exportCamera ? (_key: string, en: string) => en : translate;
   const P = PALETTE[useIstHell() ? 'hell' : 'dunkel'];
   const planVorschau = useStore((s) => s.planVorschau);
   const setPlanVorschau = useStore((s) => s.setPlanVorschau);
@@ -101,14 +108,18 @@ export default function Venue2D() {
   const setPlanBereichModus = useStore((s) => s.setPlanBereichModus);
   const units = useUnits(s => s.units);
   const length = (v: number) => formatLength(v, units) + (units === 'metric' ? 'm' : '');
-  const { venue, setVenue, cameras, selectedCameraId, selectCamera, moveCamera, updateCamera, removeCamera, duplicateCamera, showAllFov, showDof, pixelsPerMeter, persons, updatePerson, removePerson, duplicatePerson, updateStage, addStage, removeStage, updateSeatingBlock, updateVideoWall, backgroundPlan, setBackgroundPlan, walls, updateWall, addWall, removeWall, wallSnap, editGroups, avForeign, showForeign } = useStore();
+  const { venue, setVenue, cameras: storedCameras, selectedCameraId: storedSelectedCameraId, selectCamera, moveCamera, updateCamera, removeCamera, duplicateCamera, showAllFov: storedShowAllFov, showDof, pixelsPerMeter, persons, updatePerson, removePerson, duplicatePerson, updateStage, addStage, removeStage, updateSeatingBlock, updateVideoWall, backgroundPlan, setBackgroundPlan, walls, updateWall, addWall, removeWall, wallSnap, editGroups, avForeign, showForeign } = useStore();
+
+  const cameras = useMemo(() => exportCamera ? storedCameras.map(c => c.id === exportCamera.id ? exportCamera : c) : storedCameras, [storedCameras, exportCamera]);
+  const selectedCameraId = exportCamera?.id ?? storedSelectedCameraId;
+  const showAllFov = exportCamera ? false : storedShowAllFov;
 
   // Gesperrte Gruppen (#43, #169). Eine freie Gruppe faellt auf die Sperre
   // des einzelnen Objekts durch.
   const lockStages = !editGroups.includes('stage');
   const lockRoom = !editGroups.includes('room');
   const lockPersons = !editGroups.includes('objects');
-  const lockCameras = !editGroups.includes('cameras');
+  const lockCameras = !!exportCamera || !editGroups.includes('cameras');
   const lockWalls = !editGroups.includes('floorplan');
   const stageRef = useRef<Konva.Stage>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -259,29 +270,42 @@ export default function Venue2D() {
 
   useEffect(() => {
     const registry = getExportRegistry();
-    registry.capture2DExport = () => {
+    const capture = () => {
       const stage = stageRef.current;
       if (!stage) return null;
       const previousPosition = stage.position();
       const previousScale = stage.scale();
       try {
-        const bounds = planExportBounds(
-          W,
-          H,
-          stage.getClientRect({ skipTransform: true }),
-        );
+        // Coverage may extend far beyond the room. Size the detached export
+        // from the actual drawing/geometry/labels, retaining all of them.
+        const cones = exportCamera ? stage.find('.camera-coverage') : [];
+        cones.forEach(node => node.hide());
+        let content;
+        try { content = stage.getClientRect({ skipTransform: true }); }
+        finally { cones.forEach(node => node.show()); }
+        const bounds = exportCamera ? completePlanExportBounds(W, H, content) : planExportBounds(W, H, content);
         // Export in stable world coordinates. Capturing the interactive
         // pan/zoom transform could cut off room edges, cameras, or labels when
         // the user had moved the plan before exporting.
         stage.position({ x: bounds.stageX, y: bounds.stageY });
         stage.scale({ x: 1, y: 1 });
-        return stage.toCanvas({
+        const canvas = stage.toCanvas({
           x: 0,
           y: 0,
           width: bounds.width,
           height: bounds.height,
           pixelRatio: 2,
         }) as HTMLCanvasElement;
+        if (exportCamera) {
+          // Extend the plan's own paper color behind edge labels so light-theme
+          // annotations remain readable against the charcoal report panel.
+          const ctx = canvas.getContext('2d')!;
+          ctx.globalCompositeOperation = 'destination-over';
+          ctx.fillStyle = P.grund;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+        return canvas;
       } catch {
         return null;
       } finally {
@@ -290,8 +314,14 @@ export default function Venue2D() {
         stage.batchDraw();
       }
     };
+    if (exportCamera) {
+      // Wait for the embedded architectural drawing, not just the Konva nodes.
+      if (!backgroundPlan || bgImage?.src === backgroundPlan.dataUrl) onExportReady?.(capture);
+      return;
+    }
+    registry.capture2DExport = capture;
     return () => { registry.capture2DExport = null; };
-  }, [W, H]);
+  }, [W, H, exportCamera, onExportReady, backgroundPlan, bgImage, P.grund]);
 
   // Measure container and auto-fit zoom
   useEffect(() => {
@@ -850,6 +880,7 @@ export default function Venue2D() {
           const fovMin = computeFov(sensor, lensDef.focalLengthMax, cam.focusDistance, cam.extenderActive, lensDef.squeeze ?? 1);
           const fovMax = computeFov(sensor, lensDef.focalLengthMin, cam.focusDistance, cam.extenderActive, lensDef.squeeze ?? 1);
           const range = cam.focusDistance * ppm;
+          const coveragePos = exportCamera ? effectiveCameraPos(cam) : cam;
           const isSelected = cam.id === selectedCameraId;
 
           /*
@@ -877,23 +908,23 @@ export default function Venue2D() {
             : null;
 
           return (
-            <React.Fragment key={`fov-group-${cam.id}`}>
-              {isSelected && lensDef.focalLengthMin !== lensDef.focalLengthMax && (
+            <Group key={`fov-group-${cam.id}`} name="camera-coverage">
+              {!exportCamera && isSelected && lensDef.focalLengthMin !== lensDef.focalLengthMax && (
                 <Wedge
-                  x={cam.x * ppm} y={cam.y * ppm} radius={range}
+                  x={coveragePos.x * ppm} y={coveragePos.y * ppm} radius={range}
                   angle={fovMax.horizontalDeg} rotation={cam.pan - fovMax.horizontalDeg / 2}
                   fill={'#22c55e10'} stroke={'#22c55e55'} strokeWidth={1} dash={[4, 4]} listening={false}
                 />
               )}
-              {isSelected && lensDef.focalLengthMin !== lensDef.focalLengthMax && (
+              {!exportCamera && isSelected && lensDef.focalLengthMin !== lensDef.focalLengthMax && (
                 <Wedge
-                  x={cam.x * ppm} y={cam.y * ppm} radius={range}
+                  x={coveragePos.x * ppm} y={coveragePos.y * ppm} radius={range}
                   angle={fovMin.horizontalDeg} rotation={cam.pan - fovMin.horizontalDeg / 2}
                   fill={'#ef444410'} stroke={'#ef444455'} strokeWidth={1} dash={[4, 4]} listening={false}
                 />
               )}
               <Wedge
-                x={cam.x * ppm} y={cam.y * ppm} radius={range}
+                x={coveragePos.x * ppm} y={coveragePos.y * ppm} radius={range}
                 angle={fov.horizontalDeg} rotation={cam.pan - fov.horizontalDeg / 2}
                 fill={cam.color + (isSelected ? '30' : '15')}
                 stroke={cam.color + (isSelected ? 'cc' : '66')}
@@ -901,7 +932,7 @@ export default function Venue2D() {
               />
               {band && (
                 <Arc
-                  x={cam.x * ppm} y={cam.y * ppm}
+                  x={coveragePos.x * ppm} y={coveragePos.y * ppm}
                   innerRadius={band.vonM * ppm} outerRadius={band.bisM * ppm}
                   angle={fov.horizontalDeg} rotation={cam.pan - fov.horizontalDeg / 2}
                   fill={cam.color + (isSelected ? '55' : '2a')}
@@ -913,13 +944,14 @@ export default function Venue2D() {
                   strokeWidth={isSelected ? 2 : 1} listening={false}
                 />
               )}
-            </React.Fragment>
+            </Group>
           );
         })}
 
         {/* Publikum und Videowaende liegen unter den Buehnen: die Buehne ist
             das, was man zuerst greifen will. */}
         {visibility.room && <RaumOverlay
+          exportEnglish={!!exportCamera}
           ppm={ppm}
           blocks={venue.seatingBlocks ?? []}
           walls={venue.videoWalls ?? []}

@@ -62,3 +62,16 @@ export function presetExportJobs(cameras: VenueCamera[], selected: ReadonlySet<s
   }
   return jobs;
 }
+
+/** Pure queue orchestration: every output receives its own recalled camera value. */
+export async function collectPresetArtifacts<T>(jobs: CameraExportJob[], render: (job: CameraExportJob, camera: VenueCamera) => Promise<T>, progress: (current: number, total: number) => void) {
+  const artifacts: T[] = [], failures: string[] = [];
+  for (let i = 0; i < jobs.length; i++) {
+    progress(i + 1, jobs.length);
+    const job = jobs[i];
+    const camera = { ...job.cam, ...job.cameraOverride, focalLength: job.focalOverride ?? job.cameraOverride?.focalLength ?? job.cam.focalLength };
+    try { artifacts.push(await render(job, camera)); }
+    catch (error) { failures.push(`${camera.label} · ${job.displayLabel ?? 'Preset'}: ${error instanceof Error ? error.message : String(error)}`); }
+  }
+  return { artifacts, failures };
+}

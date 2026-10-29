@@ -1,3 +1,4 @@
+import type { VenueCamera } from '../../types';
 // ───────────────────────────────────────────────────────────────────────────
 // GERENDERTE KAMERABILDER (#167, #168)
 //
@@ -27,7 +28,14 @@ export type KameraLook = 'rendered' | 'simple';
 
 export interface Renderer3D {
   /** Rendert `camId` in `canvas` (CSS-Breite `cssW`). `false`, wenn nicht moeglich. */
-  render(camId: string, canvas: HTMLCanvasElement, cssW: number, dpr: number, rolle: BildRolle): boolean;
+  render(camId: string, canvas: HTMLCanvasElement, cssW: number, dpr: number, rolle: BildRolle, cameraOverride?: VenueCamera): boolean;
+}
+
+// An isolated export host shares the scene implementation, not the working viewport.
+let exportRenderer: Renderer3D | null = null;
+export function setExportRenderer3D(renderer: Renderer3D | null): void { exportRenderer = renderer; }
+export function renderPreset3D(camera: VenueCamera, canvas: HTMLCanvasElement): boolean {
+  return exportRenderer?.render(camera.id, canvas, MAX_BREITE.gross, 1, 'gross', camera) ?? false;
 }
 
 let aktiv: Renderer3D | null = null;

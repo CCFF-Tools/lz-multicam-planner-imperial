@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { VenueCamera } from '../../types';
 import { useStore } from '../../store/useStore';
 import { defaultWallHeight, resolveWallHeights } from '../../utils/wallHeight';
 import { effectiveCameraPos } from '../../utils/camera';
@@ -8,9 +9,12 @@ import { autoVideoWalls, hatSpielfeld } from '../../utils/showRig';
  * Was die Kulisse aus dem Plan ableitet — gemeinsam fuer die 3D-Ansicht und
  * die gerenderten Kamerabilder, damit beide dieselbe Halle zeigen.
  */
-export function useKulissenDaten(videoBoard: boolean) {
+export function useKulissenDaten(videoBoard: boolean, cameraOverride?: VenueCamera) {
   const venue = useStore((s) => s.venue);
-  const cameras = useStore((s) => s.cameras);
+  const storedCameras = useStore((s) => s.cameras);
+  const cameras = useMemo(() => cameraOverride
+    ? storedCameras.map(c => c.id === cameraOverride.id ? cameraOverride : c)
+    : storedCameras, [storedCameras, cameraOverride]);
   const persons = useStore((s) => s.persons);
   const rohWalls = useStore((s) => s.walls);
   const walls = useMemo(() => resolveWallHeights(rohWalls, defaultWallHeight(venue)), [rohWalls, venue]);
@@ -23,7 +27,11 @@ export function useKulissenDaten(videoBoard: boolean) {
   // Bild, auch bei verdeckter 3D-Ansicht).
   // Und mit Nachlauf: beim Ziehen einer Kamera oder Person zieht die Kulisse
   // erst 250 ms nach dem letzten Schritt nach — einmal statt 60-mal je Sekunde.
-  const camKey = useNachlauf(useStore((s) => standortSchluessel(s.cameras.map((c) => effectiveCameraPos(c)))));
+  const positionsKey = standortSchluessel(cameras.map(c => effectiveCameraPos(c)));
+  const delayedKey = useNachlauf(positionsKey);
+  // Export poses are discrete snapshots, not live drags: apply their scene-facing
+  // positions immediately, without the interactive 250 ms debounce.
+  const camKey = cameraOverride ? positionsKey : delayedKey;
   const personKey = useNachlauf(useStore((s) => standortSchluessel(s.persons)));
   const audienceCams = useMemo(() => standorteAus(camKey), [camKey]);
   const audiencePersons = useMemo(() => standorteAus(personKey), [personKey]);
