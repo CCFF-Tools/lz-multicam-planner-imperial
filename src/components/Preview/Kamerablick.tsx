@@ -44,6 +44,7 @@ import RigControlPanel from '../RigControl/RigControlPanel';
 import Regler from '../ui/Regler';
 import { TRANSITION_CYCLE, TRANSITION_PRESET_SECONDS, runCameraTransition } from '../../utils/cameraTransition';
 import { captureCurrentShot } from '../../utils/captureShot';
+import UpdateShotSettings from './UpdateShotSettings';
 import { profileForMount } from '../../utils/motionProfile';
 import { drawCameraView, wallSurfaces, type ProjectedPerson } from './cameraViewRenderer';
 import LookToggle from '../Render3D/LookToggle';
@@ -595,7 +596,8 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
                   <FiUnlock size={14} /> {t('preview.lockSubject', 'Lock subject')}
                 </button>
               )}
-              <button type="button" onClick={aufnehmen} className="bc-btn-primary ml-auto text-xs" title={t('preview.addShot', 'Add the current view to the shotlist as a shot')}>
+              <div className="ml-auto"><UpdateShotSettings cameraId={cam.id} /></div>
+              <button type="button" onClick={aufnehmen} className="bc-btn-primary text-xs" title={t('preview.addShot', 'Add the current view to the shotlist as a shot')}>
                 <FiCamera size={14} /> {t('preview.captureShot', 'Capture shot')}
               </button>
             </div>

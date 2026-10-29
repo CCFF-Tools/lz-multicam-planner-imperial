@@ -50,6 +50,8 @@ export function presetExportJobs(cameras: VenueCamera[], selected: ReadonlySet<s
           tilt: preset.tilt,
           focalLength: preset.focalLength,
           focusDistance: preset.focusDistance,
+          ...(preset.aperture !== undefined ? { aperture: preset.aperture } : {}),
+          ...(preset.trackOffset !== undefined ? { trackOffset: preset.trackOffset } : {}),
           ...(preset.savedAtPosition ? {
             x: preset.savedAtPosition.x,
             y: preset.savedAtPosition.y,
