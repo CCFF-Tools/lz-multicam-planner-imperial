@@ -6,7 +6,7 @@ import { CAMERAS, getCameraById, getAdapterInfo, getEffectiveSensor, getCoverage
 import { LENSES, getLensById, getCompatibleLenses, pickInitialMountAndLens, integratedLensesFor, lensFitsCamera, GENERIC_INTEGRATED_LENS } from '../../data/lenses';
 import { computeFov, computeDof } from '../../utils/fov';
 import { checkPresets, presetRows, type PresetFinding } from '../../utils/ptzPresets';
-import { openPtzPresetEditor } from './PresetEditorDialog';
+import { openPtzPresetEditor } from './presetEditorEvent';
 import { conflictsForCamera, conflictText } from '../../utils/sightline';
 import { FRAMING_LABEL, FRAMINGS, reachReport, verdictShort } from '../../utils/lensReach';
 import { PAINT_FINDING_LABEL, checkPaint } from '../../utils/paintState';
