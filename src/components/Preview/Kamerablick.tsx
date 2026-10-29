@@ -568,7 +568,7 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
             </div>
 
             {/* ── Werkzeuge am Bild: Darstellung, Einblendungen, Fokus, Hauptaktion ── */}
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               <LookToggle value={look} onChange={setLook} laedt={!bereit3D()} />
               <Einblendungen
                 ov={ov}
@@ -596,10 +596,13 @@ export default function Kamerablick({ kopf }: KamerablickProps) {
                   <FiUnlock size={14} /> {t('preview.lockSubject', 'Lock subject')}
                 </button>
               )}
-              <div className="ml-auto"><UpdateShotSettings cameraId={cam.id} /></div>
-              <button type="button" onClick={aufnehmen} className="bc-btn-primary text-xs" title={t('preview.addShot', 'Add the current view to the shotlist as a shot')}>
-                <FiCamera size={14} /> {t('preview.captureShot', 'Capture shot')}
-              </button>
+              {/* Keep both shot actions together as toolbar width changes. */}
+              <div className="ml-auto flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+                <UpdateShotSettings cameraId={cam.id} />
+                <button type="button" onClick={aufnehmen} className="bc-btn-primary shrink-0 text-xs" title={t('preview.addShot', 'Add the current view to the shotlist as a shot')}>
+                  <FiCamera size={14} /> {t('preview.captureShot', 'Capture shot')}
+                </button>
+              </div>
             </div>
             <p className="-mt-1 text-[11px] text-bc-dim" role="status">
               {shotHint ?? (focusPickMode ? t('preview.hintFocusPick', 'Click a person to set focus distance') : t('preview.hintDrag2', 'Drag the picture: pan/tilt · wheel or pinch: zoom'))}
