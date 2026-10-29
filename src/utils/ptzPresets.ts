@@ -139,6 +139,8 @@ export const presetFromCamera = (
   tilt: cam.tilt,
   focalLength: cam.focalLength,
   focusDistance: cam.focusDistance,
+  aperture: cam.aperture,
+  trackOffset: cam.trackOffset ?? 0,
   savedAt: at,
   savedAtPosition: { x: cam.x, y: cam.y, z: cam.z },
 });
