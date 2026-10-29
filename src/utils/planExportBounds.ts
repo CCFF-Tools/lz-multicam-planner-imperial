@@ -40,3 +40,13 @@ export function planExportBounds(
     stageY: margin - minY,
   };
 }
+
+/** Complete physical drawing bounds for detached preset exports (coverage excluded). */
+export function completePlanExportBounds(roomWidth: number, roomHeight: number, content: PlanContentRect): PlanExportBounds {
+  const minX = Math.min(0, content.x), minY = Math.min(0, content.y);
+  return {
+    width: Math.max(roomWidth, content.x + content.width) - minX + 32,
+    height: Math.max(roomHeight, content.y + content.height) - minY + 32,
+    stageX: 16 - minX, stageY: 16 - minY,
+  };
+}

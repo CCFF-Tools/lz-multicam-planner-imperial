@@ -21,8 +21,9 @@ const CEILING = '#22d3ee';
 export type RaumAuswahl = { art: 'block' | 'wand' | 'ceiling'; id: string } | null;
 
 export default function RaumOverlay({
-  ppm, blocks, walls, ceilings, locked, auswahl, onAuswahl, onBlock, onWand, onCeiling,
+  ppm, blocks, walls, ceilings, locked, auswahl, onAuswahl, onBlock, onWand, onCeiling, exportEnglish = false,
 }: {
+  exportEnglish?: boolean;
   ppm: number;
   blocks: VenueSeatingBlock[];
   walls: VenueVideoWall[];
@@ -34,7 +35,8 @@ export default function RaumOverlay({
   onWand: (id: string, patch: Partial<VenueVideoWall>) => void;
   onCeiling: (id: string, patch: Partial<CeilingZone>) => void;
 }) {
-  const { t } = useTranslation();
+  const { t: translate } = useTranslation();
+  const t = exportEnglish ? (_key: string, en: string) => en : translate;
   const units = useUnits((s) => s.units);
   const knoten = useRef<Record<string, Konva.Group>>({});
   const blockLabels = useRef<Record<string, Konva.Group>>({});

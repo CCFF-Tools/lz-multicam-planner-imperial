@@ -8,6 +8,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import type { VenueCamera } from '../../types';
 import { useStore } from '../../store/useStore';
 import { effectiveCameraPos } from '../../utils/camera';
 import { groundHeightAt } from '../../utils/stageBody';
@@ -17,7 +18,7 @@ import { Figur } from '../Venue3D/Figuren';
 import { useKulissenDaten } from '../Venue3D/kulissenDaten';
 import { useView3DPrefs } from '../Venue3D/view3dPrefs';
 import { useIstHell } from '../../lib/useIstHell';
-import { HOST_BREITE, HOST_HOEHE, RenderMessung, bildPixel, setzeRenderer3D, szene3DGeaendert, type BildRolle } from './kameraBild3d';
+import { HOST_BREITE, HOST_HOEHE, RenderMessung, bildPixel, setzeRenderer3D, setExportRenderer3D, szene3DGeaendert, type BildRolle } from './kameraBild3d';
 import { WEBGL_POWER_PREFERENCE } from '../../utils/gpuInfo';
 import { renderLook, wendeLookAn } from './renderLook';
 import { tiefenschaerfeFuerBild } from '../../utils/tiefenschaerfe';
@@ -26,8 +27,9 @@ import { objectBaseElevation } from '../../utils/ceiling';
 import { applyCameraViewVisibility } from '../../utils/cameraViewVisibility';
 import CameraSceneFleet from '../Venue3D/CameraSceneFleet';
 
-export default function KameraBildHost() {
-  const [prefs] = useView3DPrefs();
+export default function KameraBildHost({ exportOnly = false, cameraOverride }: { exportOnly?: boolean; cameraOverride?: VenueCamera }) {
+  const [viewPrefs] = useView3DPrefs();
+  const prefs = exportOnly ? { ...viewPrefs, quality: 'high' as const } : viewPrefs;
   const simple = prefs.quality === 'simple';
   return (
     <div
@@ -39,7 +41,7 @@ export default function KameraBildHost() {
           einfache Ansicht rendert direkt und braucht sie am Kontext. */}
       <Canvas key={simple ? 'simple' : 'real'} frameloop="demand" dpr={1} shadows={!simple} gl={{ antialias: simple, powerPreference: WEBGL_POWER_PREFERENCE }}>
         <Suspense fallback={null}>
-          <HostSzene key={prefs.quality} />
+          <HostSzene key={prefs.quality} exportOnly={exportOnly} cameraOverride={cameraOverride} />
         </Suspense>
       </Canvas>
     </div>
@@ -49,13 +51,14 @@ export default function KameraBildHost() {
 /** Eine Pipeline je Rolle, damit Kachel und grosses Bild sich nicht gegenseitig umbauen. */
 interface Ziel { p: SzenenPipeline; w: number; h: number }
 
-function HostSzene() {
-  const [prefs] = useView3DPrefs();
+function HostSzene({ exportOnly, cameraOverride }: { exportOnly: boolean; cameraOverride?: VenueCamera }) {
+  const [viewPrefs] = useView3DPrefs();
+  const prefs = exportOnly ? { ...viewPrefs, quality: 'high' as const } : viewPrefs;
   const simple = prefs.quality === 'simple';
   const show = prefs.showLight && !simple;
   const gl = useThree((s) => s.gl);
   const scene = useThree((s) => s.scene);
-  const daten = useKulissenDaten(prefs.videoBoard);
+  const daten = useKulissenDaten(prefs.videoBoard, cameraOverride);
   // Ohne Showlicht folgt der Planungs-Look dem Thema — wie in der 3D-Ansicht.
   const thema = useIstHell() ? 'hell' : 'dunkel';
   // Auto senkt einmal, wenn die Bilder zu lange brauchen. Ein Wechsel der
@@ -97,10 +100,13 @@ function HostSzene() {
 
   useEffect(() => {
     const auto = prefs.quality === 'auto';
-    setzeRenderer3D({
-      render(camId, canvas, cssW, dpr, rolle) {
+    const register = exportOnly ? setExportRenderer3D : setzeRenderer3D;
+    register({
+      render(camId, canvas, cssW, dpr, rolle, renderCameraOverride) {
+        // Do not capture the preceding preset while React commits this one's scene.
+        if (exportOnly && renderCameraOverride !== cameraOverride) return false;
         const st = useStore.getState();
-        const cam = st.cameras.find((c) => c.id === camId);
+        const cam = renderCameraOverride ?? st.cameras.find((c) => c.id === camId);
         if (!cam || !(cssW > 0)) return false;
         const bw = kameraBildwinkel(cam, st);
         if (!bw) return false;
@@ -187,8 +193,8 @@ function HostSzene() {
         return true;
       },
     });
-    return () => setzeRenderer3D(null);
-  }, [gl, scene, kamera, prefs.quality, gesenkt, simple, show, stufe, look]);
+    return () => register(null);
+  }, [gl, scene, kamera, prefs.quality, gesenkt, simple, show, stufe, look, exportOnly, cameraOverride]);
 
   // Nach jedem Umbau der Szene sind die kopierten Bilder alt.
   useEffect(() => { szene3DGeaendert(); }, [daten, show, simple, werte, prefs.audience, thema, tag, prefs.sky, look]);

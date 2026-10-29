@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { VenueCamera } from '../types';
 import { cameraExportJobs, presetExportJobs, presetExportKey } from '../utils/exportBatch';
-import { selectedPresetSheetLayout } from '../utils/presetExportSheet';
+import { selectedPresetSheetLayout, containExportImage } from '../utils/presetExportSheet';
 import { planExportBounds } from '../utils/planExportBounds';
 import previewSource from '../components/Preview/Kamerablick.tsx?raw';
 
@@ -56,37 +56,35 @@ describe('selected preset export queue', () => {
 });
 
 describe('selected preset delivery sheet', () => {
-  it('uses a fixed 1920×1080 canvas with a room-aware plan column', () => {
-    const layout = selectedPresetSheetLayout(12.2, 18.3);
-    expect([layout.width, layout.height]).toEqual([1920, 1080]);
-    expect(layout.width / layout.height).toBeCloseTo(16 / 9, 8);
-    expect(layout.plan2D.height).toBeGreaterThan(900);
-    expect(layout.plan2D.width / layout.plan2D.height).toBeGreaterThan(0.55);
-    expect(layout.plan2D.width / layout.plan2D.height).toBeLessThan(0.7);
-    expect(layout.view3D.width).toBeGreaterThanOrEqual(800);
-    expect(layout.cameraView.width).toBeGreaterThanOrEqual(800);
-    expect(layout.data.width).toBeGreaterThanOrEqual(400);
-
-    for (const rect of [layout.plan2D, layout.view3D, layout.cameraView, layout.data]) {
+  it('uses fixed 2560×1440 geometry with two views and four aligned technical panels', () => {
+    const layout = selectedPresetSheetLayout();
+    expect([layout.width, layout.height]).toEqual([2560, 1440]);
+    expect(layout.width / layout.height).toBe(16 / 9);
+    expect(layout.cameraView.width / (layout.cameraView.width + layout.plan2D.width)).toBeCloseTo(.65, 2);
+    expect(layout).not.toHaveProperty('view3D');
+    const rects = [layout.cameraView, layout.plan2D, ...layout.sections];
+    for (const rect of rects) {
       expect(rect.x).toBeGreaterThanOrEqual(0);
       expect(rect.y).toBeGreaterThanOrEqual(layout.headerHeight);
       expect(rect.x + rect.width).toBeLessThanOrEqual(layout.width);
       expect(rect.y + rect.height).toBeLessThanOrEqual(layout.height);
+      for (const other of rects.filter(r => r !== rect)) {
+        expect(rect.x + rect.width <= other.x || other.x + other.width <= rect.x
+          || rect.y + rect.height <= other.y || other.y + other.height <= rect.y).toBe(true);
+      }
     }
-    expect(layout.plan2D.x + layout.plan2D.width).toBeLessThan(layout.view3D.x);
-    expect(layout.view3D.x).toBe(layout.cameraView.x);
-    expect(layout.view3D.width).toBe(layout.cameraView.width);
-    expect(layout.view3D.y + layout.view3D.height).toBeLessThan(layout.cameraView.y);
-    expect(layout.cameraView.x + layout.cameraView.width).toBeLessThan(layout.data.x);
-    expect(layout.data.height).toBe(layout.plan2D.height);
+    expect(new Set(layout.sections.map(r => r.y)).size).toBe(1);
+    expect(new Set(layout.sections.map(r => r.height)).size).toBe(1);
   });
 
-  it('gives a taller room a narrower plan column without starving the visual stack', () => {
-    const tall = selectedPresetSheetLayout(8, 24);
-    const wide = selectedPresetSheetLayout(24, 8);
-    expect(tall.plan2D.width).toBeLessThan(wide.plan2D.width);
-    expect(tall.view3D.width).toBeGreaterThan(wide.view3D.width);
-    expect(wide.view3D.width).toBeGreaterThanOrEqual(800);
+  it.each([[13.4, 19.2], [24, 8], [8, 24], [10, 10], [1280, 720]])('contains %s×%s sources without cropping or distortion', (width, height) => {
+    const rect = selectedPresetSheetLayout().plan2D;
+    const image = containExportImage(width, height, rect);
+    expect(image.width / image.height).toBeCloseTo(width / height, 10);
+    expect(image.x).toBeGreaterThanOrEqual(rect.x - 1e-8);
+    expect(image.y).toBeGreaterThanOrEqual(rect.y - 1e-8);
+    expect(image.x + image.width).toBeLessThanOrEqual(rect.x + rect.width + 1e-8);
+    expect(image.y + image.height).toBeLessThanOrEqual(rect.y + rect.height + 1e-8);
   });
 
   it('includes nearby edge labels without allowing distant outliers to shrink the room', () => {

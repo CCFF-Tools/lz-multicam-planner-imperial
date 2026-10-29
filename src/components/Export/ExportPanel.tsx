@@ -27,8 +27,6 @@ import { createZip } from '../../utils/zip';
 import { cameraExportJobs, presetExportJobs, presetExportKey } from '../../utils/exportBatch';
 import { withTransientProjectState } from '../../store/transientProjectState';
 import { useBedarf3D } from '../Render3D/kameraBild3d';
-import { getView3DPrefs, updateView3DPrefs } from '../Venue3D/view3dPrefs';
-import { selectedPresetSheetLayout, type ExportRect } from '../../utils/presetExportSheet';
 
 export type ExportMode = 'current' | 'all' | 'widetele' | 'all-widetele' | 'selected-presets';
 
@@ -138,7 +136,6 @@ export default function ExportPanel() {
     displayLabel?: string;
     extraSettleMs?: number;
     cameraOverride?: Partial<VenueCamera>;
-    selectedPresetSheet?: boolean;
   }) => {
     const overriddenCam = { ...baseCam, ...opts?.cameraOverride };
     const targetCam = { ...overriddenCam, focalLength: opts?.focalOverride ?? overriddenCam.focalLength };
@@ -179,153 +176,7 @@ export default function ExportPanel() {
 
     const plan2D = capture2DCanvas();
     const view3D = capture3DCanvas();
-    let previewCanvas = capturePreviewCanvas(!!opts?.selectedPresetSheet);
-    if (opts?.selectedPresetSheet && !previewCanvas) {
-      await waitForPaint(400);
-      previewCanvas = capturePreviewCanvas(true);
-    }
-
-    // Selected PTZ preset delivery is a compact review frame, not the full
-    // operational camera card used by the other export commands.
-    if (opts?.selectedPresetSheet) {
-      const layout = selectedPresetSheetLayout(venue.widthM, venue.heightM);
-      const out = document.createElement('canvas');
-      out.width = layout.width;
-      out.height = layout.height;
-      const ctx = out.getContext('2d')!;
-      ctx.fillStyle = '#0f1117';
-      ctx.fillRect(0, 0, layout.width, layout.height);
-
-      ctx.fillStyle = '#1a1d27';
-      ctx.fillRect(0, 0, layout.width, layout.headerHeight);
-      ctx.fillStyle = '#e5e7eb';
-      ctx.textAlign = 'left';
-      ctx.font = 'bold 24px sans-serif';
-      ctx.fillText(`${targetCam.label}${opts.displayLabel ? ` — ${opts.displayLabel}` : ''}`, 16, 28);
-      ctx.font = '14px sans-serif';
-      ctx.fillStyle = '#cbd5e1';
-      ctx.fillText(`${camDef.manufacturer} ${camDef.model} · Lens: ${lensDef.manufacturer} ${lensDef.model} @ ${focalLength.toFixed(1)}mm`, 16, 51);
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#9ca3af';
-      ctx.fillText(`${venue.name} — Project v${projectVersion}`, layout.width - 16, 25);
-      ctx.fillText(`Exported: ${new Date().toLocaleString('en-US')}`, layout.width - 16, 48);
-
-      const drawPresetTile = (src: HTMLCanvasElement | null, rect: ExportRect, label: string) => {
-        ctx.fillStyle = '#0a0e14';
-        ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-        if (src && src.width > 0 && src.height > 0) {
-          // Reserve room for the title strip and contain the complete source.
-          // In particular, never crop a portrait plan to fill a landscape box.
-          const contentX = rect.x + 8;
-          const contentY = rect.y + 34;
-          const contentWidth = rect.width - 16;
-          const contentHeight = rect.height - 42;
-          const scale = Math.min(contentWidth / src.width, contentHeight / src.height);
-          const drawWidth = src.width * scale;
-          const drawHeight = src.height * scale;
-          ctx.drawImage(
-            src,
-            contentX + (contentWidth - drawWidth) / 2,
-            contentY + (contentHeight - drawHeight) / 2,
-            drawWidth,
-            drawHeight,
-          );
-        } else {
-          ctx.fillStyle = '#1a1d27';
-          ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
-          ctx.fillStyle = '#6b7280';
-          ctx.font = '14px sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText(`${label} — not available`, rect.x + rect.width / 2, rect.y + rect.height / 2);
-        }
-        ctx.strokeStyle = '#2a2d3a';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
-        ctx.fillStyle = '#000000bb';
-        ctx.fillRect(rect.x, rect.y, 150, 28);
-        ctx.fillStyle = '#e5e7eb';
-        ctx.font = 'bold 14px sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(label, rect.x + 8, rect.y + 19);
-      };
-
-      drawPresetTile(plan2D, layout.plan2D, '2D plan');
-      drawPresetTile(view3D, layout.view3D, '3D view');
-      drawPresetTile(previewCanvas, layout.cameraView, 'Camera view');
-
-      const data = layout.data;
-      ctx.fillStyle = '#1a1d27';
-      ctx.fillRect(data.x, data.y, data.width, data.height);
-      ctx.strokeStyle = '#2a2d3a';
-      ctx.strokeRect(data.x, data.y, data.width, data.height);
-      ctx.fillStyle = '#000000bb';
-      ctx.fillRect(data.x, data.y, 180, 28);
-      ctx.fillStyle = '#e5e7eb';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText('Calculator / data', data.x + 8, data.y + 19);
-
-      const dx = data.x + 20;
-      let dy = data.y + 54;
-      const dataLineH = 22;
-      ctx.fillStyle = '#3b82f6';
-      ctx.font = 'bold 15px monospace';
-      ctx.fillText('CAMERA & OPTICS', dx, dy);
-      dy += 28;
-      ctx.font = '13px monospace';
-      const selectedLines: Array<[string, string, string?]> = [
-        ['Camera:', `${camDef.manufacturer} ${camDef.model}`],
-        ['Sensor:', `${sensor.name} (${sensor.widthMm.toFixed(1)}×${sensor.heightMm.toFixed(1)}mm)`],
-        ['Mount:', camDef.mount],
-        ['Lens:', `${lensDef.manufacturer} ${lensDef.model}`],
-        ['Focal length:', `${focalLength.toFixed(1)}mm${targetCam.extenderActive > 1 ? ` (×${targetCam.extenderActive})` : ''}`],
-        ['Aperture:', `f/${targetCam.aperture}`],
-        ['Focus distance:', length(targetCam.focusDistance)],
-        ['Position:', `X=${length(targetCam.x)}  Y=${length(targetCam.y)}`],
-        ['Lens height:', length(targetCam.z)],
-        ['Orientation:', `Pan ${targetCam.pan.toFixed(1)}°  Tilt ${targetCam.tilt.toFixed(1)}°`],
-        ['Field of view:', `H ${fov.horizontalDeg.toFixed(2)}°  V ${fov.verticalDeg.toFixed(2)}°`, '#22c55e'],
-        ['Image at focus:', formatDimensions(fov.imageWidthAtDistance, fov.imageHeightAtDistance, units), '#22c55e'],
-        ['35mm equivalent:', `${fov.equivalentFocalLength.toFixed(0)}mm`],
-        ['Depth of field:', `${length(dof.nearLimit < 0.01 ? 0 : dof.nearLimit)} – ${dof.farLimit === Infinity ? '∞' : length(dof.farLimit)}`, '#22c55e'],
-        ['Hyperfocal:', length(dof.hyperfocal)],
-        ['1.8m person:', `${personPx.toFixed(0)}px / 1080 (${((personPx / 1080) * 100).toFixed(1)}%)`, '#22c55e'],
-      ];
-      if (adapterInfo) selectedLines.push(['Adapter:', adapterInfo.name, '#f59e0b']);
-      const valueX = dx + 140;
-      const valueWidth = data.width - 180;
-      const wrapValue = (value: string): string[] => {
-        const words = value.split(/\s+/).filter(Boolean);
-        if (words.length === 0) return [''];
-        const lines: string[] = [];
-        let line = words[0];
-        for (const word of words.slice(1)) {
-          const candidate = `${line} ${word}`;
-          if (ctx.measureText(candidate).width <= valueWidth) line = candidate;
-          else {
-            lines.push(line);
-            line = word;
-          }
-        }
-        lines.push(line);
-        return lines;
-      };
-      for (const [label, value, color] of selectedLines) {
-        ctx.fillStyle = color ?? '#e5e7eb';
-        ctx.fillText(label, dx, dy);
-        const valueLines = wrapValue(value);
-        for (let lineIndex = 0; lineIndex < valueLines.length; lineIndex += 1) {
-          ctx.fillText(valueLines[lineIndex], valueX, dy + lineIndex * dataLineH);
-        }
-        dy += dataLineH * valueLines.length;
-      }
-
-      const filename = `${safeFilePart(targetCam.label)}${opts.variantLabel ? `_${safeFilePart(opts.variantLabel)}` : ''}_${safeFilePart(venue.name)}_v${projectVersion}.png`;
-      const blob = await new Promise<Blob | null>((resolve) => out.toBlob(resolve, 'image/png'));
-      if (needCameraChange) setExportCamera(originalCam);
-      if (needSelectionChange) useStore.getState().selectCamera(originalSelected);
-      return blob ? { filename, blob } satisfies ExportArtifact : null;
-    }
+    const previewCanvas = capturePreviewCanvas();
 
     // ── Layout constants ──
     const EW = 1920;
@@ -798,21 +649,30 @@ export default function ExportPanel() {
 
     setExporting(true);
 
-    const savedViewPrefs = mode === 'selected-presets' ? getView3DPrefs() : null;
-    if (savedViewPrefs && savedViewPrefs.quality !== 'high') {
-      updateView3DPrefs({ quality: 'high' });
-    }
     if (mode === 'selected-presets') {
-      // The hidden camera renderer may need to mount or rebuild its high-quality
-      // pipeline after a user has been working in Simple/Low mode.
-      await waitForPaint(650);
+      try {
+        const { exportSelectedPresets } = await import('./selectedPresetExport');
+        const result = await exportSelectedPresets(presetExportJobs(targetCams, presetKeys), units,
+          (current, total) => setExportProgress({ current, total }));
+        if (result.artifacts.length) {
+          const archive = await createZip(result.artifacts.map(a => ({ name: a.filename, data: a.blob })));
+          downloadBlob(archive, `${safeFilePart(state.venue.name)}_camera_exports_v${state.projectVersion}.zip`);
+        }
+        if (result.failures.length) alert(`Some preset exports failed:\n${result.failures.join('\n')}`);
+      } catch (error) {
+        alert(`Preset export failed: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        setExporting(false);
+        setExportProgress({ current: 0, total: 0 });
+      }
+      return;
     }
 
     let restoreLayout: (() => void) | null = null;
     const registry = getExportRegistry();
     if (typeof registry.prepareForExport === 'function') {
       try {
-        const prep = await registry.prepareForExport({ selectedPresetSheet: mode === 'selected-presets' });
+        const prep = await registry.prepareForExport();
         if (prep) restoreLayout = prep.restore;
       } catch { /* fall through */ }
     }
@@ -833,9 +693,7 @@ export default function ExportPanel() {
     const originalCameras = new Map(state.cameras.map((camera) => [camera.id, camera]));
     const wantsWideTele = mode === 'widetele' || mode === 'all-widetele';
 
-    const jobs = mode === 'selected-presets'
-      ? presetExportJobs(targetCams, presetKeys)
-      : cameraExportJobs(targetCams, wantsWideTele, (camera) => (
+    const jobs = cameraExportJobs(targetCams, wantsWideTele, (camera) => (
           getLensById(camera.lensId, useStore.getState().customLenses)
         ));
 
@@ -844,7 +702,6 @@ export default function ExportPanel() {
         try { framingApi.apply(savedFraming); } catch { /* ignore */ }
       }
       if (restoreLayout) restoreLayout();
-      if (savedViewPrefs) updateView3DPrefs(savedViewPrefs);
       setExporting(false);
       return;
     }
@@ -860,7 +717,6 @@ export default function ExportPanel() {
           variantLabel: jobs[i].variantLabel,
           displayLabel: jobs[i].displayLabel,
           cameraOverride: jobs[i].cameraOverride,
-          selectedPresetSheet: mode === 'selected-presets',
           // The first capture in the batch needs extra settle time so the WebGL
           // 3D canvas, freshly resized by the layout swap and the framing change,
           // actually paints visible content before drawImage reads from it.
@@ -888,11 +744,10 @@ export default function ExportPanel() {
         try { framingApi.apply(savedFraming); } catch { /* ignore */ }
       }
       if (restoreLayout) restoreLayout();
-      if (savedViewPrefs) updateView3DPrefs(savedViewPrefs);
       setExporting(false);
       setExportProgress({ current: 0, total: 0 });
     }
-  }, [renderOne, t]);
+  }, [renderOne, t, units]);
 
   useEffect(() => {
     const handler = (e: Event) => {
