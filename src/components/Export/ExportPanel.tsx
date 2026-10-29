@@ -32,6 +32,7 @@ export type ExportMode = 'current' | 'all' | 'widetele' | 'all-widetele' | 'sele
 
 interface ExportDetail {
   mode?: ExportMode;
+  presetKeys?: string[];
 }
 
 interface ExportArtifact {
@@ -754,6 +755,10 @@ export default function ExportPanel() {
       const detail = (e as CustomEvent<ExportDetail>).detail;
       const mode = detail?.mode ?? 'current';
       if (mode === 'selected-presets') {
+        if (detail?.presetKeys) {
+          void generateExport('selected-presets', new Set(detail.presetKeys));
+          return;
+        }
         setSelectedPresets(new Set());
         setPresetPickerOpen(true);
       } else {
