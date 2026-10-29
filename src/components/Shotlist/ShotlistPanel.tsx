@@ -81,7 +81,7 @@ export default function ShotlistPanel() {
   const linkedPresets = useMemo(() => new Map(shots.flatMap(shot => {
     const camera = cameras.find(c => c.id === shot.cameraId);
     const preset = camera?.presets?.find(p => p.number === shot.ptzPresetNumber);
-    return preset ? [[shot.id, { camera, preset }] as const] : [];
+    return camera && preset ? [[shot.id, { camera, preset }] as const] : [];
   })), [shots, cameras]);
   const exportKeys = [...new Set([...exportShotIds].flatMap(id => {
     const linked = linkedPresets.get(id);
