@@ -59,7 +59,7 @@ export async function exportSelectedPresets(jobs: CameraExportJob[], units: Unit
       const cameraNumber = state.cameras.findIndex(c => c.id === camera.id) + 1;
       const out = drawPresetSheet({
         camera, cameraNumber,
-        presetLabel: job.displayLabel ?? '', venue: state.venue, projectVersion: state.projectVersion,
+        presetLabel: job.displayLabel ?? '', titleOverride: job.titleOverride, venue: state.venue, projectVersion: state.projectVersion,
         timestamp, units, frame, plan, data,
       });
       const blob = await new Promise<Blob | null>(resolve => out.toBlob(resolve, 'image/png'));
