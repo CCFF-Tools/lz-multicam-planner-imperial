@@ -1,15 +1,16 @@
 // Publikumsflaechen und Videowaende im 2D-Plan: ziehen, drehen, Groesse
 // aendern. Feinwerte stehen im Abschnitt „Raum" der Seitenleiste; hier nur,
 // was man mit der Maus besser macht als mit Zahlen.
-import { useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import { Group, Line, Rect, Text, Transformer } from 'react-konva';
 import type Konva from 'konva';
-import { sitzblockNormal, sitzblockPlaetze, videowandNormal, type VenueSeatingBlock, type VenueVideoWall } from '../../avplan/floorplan';
+import { sitzblockNormal, videowandNormal, type VenueSeatingBlock, type VenueVideoWall } from '../../avplan/floorplan';
 import { useTranslation, format } from '../../i18n';
 import { useUnits } from '../../store/units';
 import { formatDimensions, formatLengthWithUnit } from '../../utils/units';
 import type { CeilingZone } from '../../types';
 import { normaliseCeilingZone } from '../../utils/ceiling';
+import { audienceBlockCounts, audienceBlockLabelLayout } from '../../utils/audienceBlockLabel';
 
 // Bedeutungsfarben (siehe PALETTE in Venue2D): bleiben in beiden Themen gleich.
 const SITZEN = '#7c8db0';
@@ -36,6 +37,7 @@ export default function RaumOverlay({
   const { t } = useTranslation();
   const units = useUnits((s) => s.units);
   const knoten = useRef<Record<string, Konva.Group>>({});
+  const blockLabels = useRef<Record<string, Konva.Group>>({});
   const trRef = useRef<Konva.Transformer>(null);
 
   useEffect(() => {
@@ -54,6 +56,11 @@ export default function RaumOverlay({
   const ref = (id: string) => (n: Konva.Group | null) => {
     if (n) knoten.current[id] = n;
     else delete knoten.current[id];
+  };
+
+  const labelRef = (id: string) => (n: Konva.Group | null) => {
+    if (n) blockLabels.current[id] = n;
+    else delete blockLabels.current[id];
   };
 
   return (
@@ -108,46 +115,76 @@ export default function RaumOverlay({
         const h = tiefe * ppm;
         const reihen: number[] = [];
         if (!b.standing && b.rows <= 80) for (let j = 1; j < b.rows; j++) reihen.push(-h / 2 + j * b.rowSpacingM * ppm);
-        const anzahl = Math.round(sitzblockPlaetze(b) * b.occupancy);
+        const counts = audienceBlockCounts(b);
+        const name = b.label || (b.standing ? t('room.standing', 'Standing') : t('room.seated', 'Seated'));
+        const unit = b.standing ? t('room.peopleUnit', 'people') : t('room.seatsUnit', 'seats');
+        const label = audienceBlockLabelLayout({
+          name,
+          capacity: format(t('room.capacityLine', 'Capacity: {n} {unit}'), { n: counts.capacity, unit }),
+          occupied: format(t('room.occupiedLine', 'Occupied: {n} {unit} ({percent}%)'), { n: counts.occupied, unit, percent: counts.percent }),
+          compactCapacity: format(t('room.capacityCompact', 'Cap. {n}'), { n: counts.capacity }),
+          compactOccupied: format(t('room.occupiedCompact', 'Occ. {n} ({percent}%)'), { n: counts.occupied, percent: counts.percent }),
+        }, w, h);
         return (
-          <Group
-            key={b.id}
-            ref={ref(b.id)}
-            x={b.x * ppm}
-            y={b.y * ppm}
-            rotation={b.rotationDeg}
-            draggable={!locked}
-            onClick={waehle({ art: 'block', id: b.id })}
-            onTap={waehle({ art: 'block', id: b.id })}
-            onDragEnd={(e) => onBlock(b.id, { x: Math.round((e.target.x() / ppm) * 10) / 10, y: Math.round((e.target.y() / ppm) * 10) / 10 })}
-            onTransformEnd={(e) => {
-              const n = e.target;
-              const sx = n.scaleX();
-              const sy = n.scaleY();
-              n.scale({ x: 1, y: 1 });
-              onBlock(b.id, {
-                x: Math.round((n.x() / ppm) * 10) / 10,
-                y: Math.round((n.y() / ppm) * 10) / 10,
-                width: Math.max(1, Math.round(b.width * sx * 10) / 10),
-                rows: Math.max(1, Math.round(b.rows * sy)),
-                rotationDeg: Math.round(n.rotation()),
-              });
-            }}
-          >
-            <Rect x={-w / 2} y={-h / 2} width={w} height={h} fill={farbe + '26'} stroke={farbe} strokeWidth={gewaehlt ? 2.5 : 1.5} dash={b.standing ? [6, 4] : undefined} />
-            {reihen.map((y, i) => <Line key={i} points={[-w / 2, y, w / 2, y]} stroke={farbe + '55'} strokeWidth={1} listening={false} />)}
-            {/* Vorderkante: hier sitzt die erste Reihe, Blick nach aussen */}
-            <Line points={[-w / 2, -h / 2, w / 2, -h / 2]} stroke={farbe} strokeWidth={4} listening={false} />
-            <Text
-              x={-w / 2 + 4}
-              y={-h / 2 + 6}
-              width={Math.max(40, w - 8)}
-              text={`${b.label || (b.standing ? t('room.standing', 'Standing') : t('room.seated', 'Seated'))} · ${format(t('room.people', '{n} people'), { n: anzahl })}`}
-              fontSize={11}
-              fill={farbe}
-              listening={false}
-            />
-          </Group>
+          <Fragment key={b.id}>
+            <Group
+              ref={ref(b.id)}
+              x={b.x * ppm}
+              y={b.y * ppm}
+              rotation={b.rotationDeg}
+              draggable={!locked}
+              onClick={waehle({ art: 'block', id: b.id })}
+              onTap={waehle({ art: 'block', id: b.id })}
+              onDragMove={(e) => {
+                const annotation = blockLabels.current[b.id];
+                if (annotation) annotation.position(e.target.position());
+              }}
+              onDragEnd={(e) => onBlock(b.id, { x: Math.round((e.target.x() / ppm) * 10) / 10, y: Math.round((e.target.y() / ppm) * 10) / 10 })}
+              onTransform={(e) => {
+                const annotation = blockLabels.current[b.id];
+                if (annotation) annotation.rotation(e.target.rotation());
+              }}
+              onTransformEnd={(e) => {
+                const n = e.target;
+                const sx = n.scaleX();
+                const sy = n.scaleY();
+                n.scale({ x: 1, y: 1 });
+                onBlock(b.id, {
+                  x: Math.round((n.x() / ppm) * 10) / 10,
+                  y: Math.round((n.y() / ppm) * 10) / 10,
+                  width: Math.max(1, Math.round(b.width * sx * 10) / 10),
+                  rows: Math.max(1, Math.round(b.rows * sy)),
+                  rotationDeg: Math.round(n.rotation()),
+                });
+              }}
+            >
+              <Rect x={-w / 2} y={-h / 2} width={w} height={h} fill={farbe + '26'} stroke={farbe} strokeWidth={gewaehlt ? 2.5 : 1.5} dash={b.standing ? [6, 4] : undefined} />
+              {reihen.map((y, i) => <Line key={i} points={[-w / 2, y, w / 2, y]} stroke={farbe + '55'} strokeWidth={1} listening={false} />)}
+              {/* Vorderkante: hier sitzt die erste Reihe, Blick nach aussen */}
+              <Line points={[-w / 2, -h / 2, w / 2, -h / 2]} stroke={farbe} strokeWidth={4} listening={false} />
+            </Group>
+            <Group ref={labelRef(b.id)} x={b.x * ppm} y={b.y * ppm} rotation={b.rotationDeg} listening={false}>
+              {!label.inside && <Rect x={label.x - 3} y={label.y - 2} width={label.width + 6} height={label.height + 4} fill={farbe + '18'} stroke={farbe + '55'} strokeWidth={1} listening={false} />}
+              {label.lines.map((line, index) => (
+                <Text
+                  key={index}
+                  x={label.x}
+                  y={label.y + line.y}
+                  width={label.width}
+                  height={label.lineHeight}
+                  text={line.text}
+                  fontSize={label.fontSize}
+                  fontStyle={line.bold ? 'bold' : 'normal'}
+                  lineHeight={1.1}
+                  wrap="none"
+                  ellipsis
+                  align="center"
+                  fill={farbe}
+                  listening={false}
+                />
+              ))}
+            </Group>
+          </Fragment>
         );
       })}
       {walls.map((roh) => {
